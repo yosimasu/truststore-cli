@@ -260,6 +260,38 @@ func TestIsDomainSource(t *testing.T) {
 }
 
 func TestHandleFileSource(t *testing.T) {
+	// Create test PEM file
+	tempDir := t.TempDir()
+	testPemFile := filepath.Join(tempDir, "test.pem")
+	
+	// Copy a valid test certificate
+	testCertContent := `-----BEGIN CERTIFICATE-----
+MIIDozCCAougAwIBAgIUfdhU6GQU6oD22HvwXjzQ03Xqh78wDQYJKoZIhvcNAQEL
+BQAwYTELMAkGA1UEBhMCVVMxCzAJBgNVBAgMAkNBMRYwFAYDVQQHDA1TYW4gRnJh
+bmNpc2NvMRIwEAYDVQQKDAlUZXN0IENvcnAxGTAXBgNVBAMMEHRlc3QuZXhhbXBs
+ZS5jb20wHhcNMjUwODI4MTYwNTU0WhcNMjYwODI4MTYwNTU0WjBhMQswCQYDVQQG
+EwJVUzELMAkGA1UECAwCQ0ExFjAUBgNVBAcMDVNhbiBGcmFuY2lzY28xEjAQBgNV
+BAoMCVRlc3QgQ29ycDEZMBcGA1UEAwwQdGVzdC5leGFtcGxlLmNvbTCCASIwDQYJ
+KoZIhvcNAQEBBQADggEPADCCAQoCggEBAMPXfV/BNis9ZV5OcbwdjFisiKN2AqIG
+w+riNCaNlBRwIhX2geijDK5r8U+r93k3LE/yIm6DZzLGqkBYDHj7e1Ba1k6deIak
+UYlU5gcdrDOlvNOf5c7TnU2+kvM5MKl/1XHd5AKvUWpp0BLbX8ElDSKmZMMhpwJ7
+aywAR5S0Fu9rmmJlJ85qb3Adk5TvZDDH2eXhvhMViwk1eAXtMTn0isNyepXEVSiy
+484lIeDK7TZz231qAeKe1TJch3WWvCIeRO52XEBGq4zON0hcw8daG0wesuuMVGp2
+Nf7trM35U18rlBYkMkMSabMoFQly6W6tC44vagZfhCpQDIgp/xgVTLkCAwEAAaNT
+MFEwHQYDVR0OBBYEFGccvF8TPjDUteZyZKxbgSlKvrJzMB8GA1UdIwQYMBaAFGcc
+vF8TPjDUteZyZKxbgSlKvrJzMA8GA1UdEwEB/wQFMAMBAf8wDQYJKoZIhvcNAQEL
+BQADggEBAKat9EvGNsQz9coc7SfBJiJbDsqXrp5ItuyGp46KQwGxd/Id9oBRk51W
+2GbsFH1Rkm2oAW+VqWroRBIHdyPSPWAcxIP+by4+jWaPJWWXb+75BpCitV+FbM+A
+nrgNC8ez4uZ8a8iJ21bGl/b46S8VkzIQ9DOoXqIvxZS6Gqimw8EgrFQYb3ztdIyT
+B+N1jOlP2YAabbhOCsi+HFgniarAyVWaEOSLIQZATO4h0WaQFznlvE3O2JPtAXrW
+/DMiQajQYDidCplTPlqi7YsY1Bi2MA8iNcf5NehNgV7inuaTi1isIBxX5y8OQXEV
+iDAAHBIw3Qui4t7XMnqz+8Y7nr3PSQg=
+-----END CERTIFICATE-----`
+	
+	if err := os.WriteFile(testPemFile, []byte(testCertContent), 0644); err != nil {
+		t.Fatalf("Failed to create test PEM file: %v", err)
+	}
+
 	tests := []struct {
 		name     string
 		source   string
@@ -267,16 +299,34 @@ func TestHandleFileSource(t *testing.T) {
 		wantErr  bool
 	}{
 		{
-			name:     "file without password",
-			source:   "certificate.pem",
+			name:     "PEM file",
+			source:   testPemFile,
 			password: "",
 			wantErr:  false,
 		},
 		{
-			name:     "file with password",
+			name:     "PEM file with .pem extension",
+			source:   strings.Replace(testPemFile, "test.pem", "test2.pem", 1),
+			password: "",
+			wantErr:  true, // File doesn't exist
+		},
+		{
+			name:     "JKS file placeholder",
 			source:   "keystore.jks",
 			password: "secret",
 			wantErr:  false,
+		},
+		{
+			name:     "PKCS12 file placeholder",
+			source:   "keystore.p12",
+			password: "secret",
+			wantErr:  false,
+		},
+		{
+			name:     "file without extension defaults to PEM",
+			source:   strings.Replace(testPemFile, ".pem", "", 1),
+			password: "",
+			wantErr:  true, // File doesn't exist
 		},
 	}
 
@@ -285,6 +335,75 @@ func TestHandleFileSource(t *testing.T) {
 			err := handleFileSource(tt.source, tt.password)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("handleFileSource() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestHandlePemFile(t *testing.T) {
+	// Create test PEM file
+	tempDir := t.TempDir()
+	testPemFile := filepath.Join(tempDir, "test.pem")
+	
+	testCertContent := `-----BEGIN CERTIFICATE-----
+MIIDozCCAougAwIBAgIUfdhU6GQU6oD22HvwXjzQ03Xqh78wDQYJKoZIhvcNAQEL
+BQAwYTELMAkGA1UEBhMCVVMxCzAJBgNVBAgMAkNBMRYwFAYDVQQHDA1TYW4gRnJh
+bmNpc2NvMRIwEAYDVQQKDAlUZXN0IENvcnAxGTAXBgNVBAMMEHRlc3QuZXhhbXBs
+ZS5jb20wHhcNMjUwODI4MTYwNTU0WhcNMjYwODI4MTYwNTU0WjBhMQswCQYDVQQG
+EwJVUzELMAkGA1UECAwCQ0ExFjAUBgNVBAcMDVNhbiBGcmFuY2lzY28xEjAQBgNV
+BAoMCVRlc3QgQ29ycDEZMBcGA1UEAwwQdGVzdC5leGFtcGxlLmNvbTCCASIwDQYJ
+KoZIhvcNAQEBBQADggEPADCCAQoCggEBAMPXfV/BNis9ZV5OcbwdjFisiKN2AqIG
+w+riNCaNlBRwIhX2geijDK5r8U+r93k3LE/yIm6DZzLGqkBYDHj7e1Ba1k6deIak
+UYlU5gcdrDOlvNOf5c7TnU2+kvM5MKl/1XHd5AKvUWpp0BLbX8ElDSKmZMMhpwJ7
+aywAR5S0Fu9rmmJlJ85qb3Adk5TvZDDH2eXhvhMViwk1eAXtMTn0isNyepXEVSiy
+484lIeDK7TZz231qAeKe1TJch3WWvCIeRO52XEBGq4zON0hcw8daG0wesuuMVGp2
+Nf7trM35U18rlBYkMkMSabMoFQly6W6tC44vagZfhCpQDIgp/xgVTLkCAwEAAaNT
+MFEwHQYDVR0OBBYEFGccvF8TPjDUteZyZKxbgSlKvrJzMB8GA1UdIwQYMBaAFGcc
+vF8TPjDUteZyZKxbgSlKvrJzMA8GA1UdEwEB/wQFMAMBAf8wDQYJKoZIhvcNAQEL
+BQADggEBAKat9EvGNsQz9coc7SfBJiJbDsqXrp5ItuyGp46KQwGxd/Id9oBRk51W
+2GbsFH1Rkm2oAW+VqWroRBIHdyPSPWAcxIP+by4+jWaPJWWXb+75BpCitV+FbM+A
+nrgNC8ez4uZ8a8iJ21bGl/b46S8VkzIQ9DOoXqIvxZS6Gqimw8EgrFQYb3ztdIyT
+B+N1jOlP2YAabbhOCsi+HFgniarAyVWaEOSLIQZATO4h0WaQFznlvE3O2JPtAXrW
+/DMiQajQYDidCplTPlqi7YsY1Bi2MA8iNcf5NehNgV7inuaTi1isIBxX5y8OQXEV
+iDAAHBIw3Qui4t7XMnqz+8Y7nr3PSQg=
+-----END CERTIFICATE-----`
+	
+	if err := os.WriteFile(testPemFile, []byte(testCertContent), 0644); err != nil {
+		t.Fatalf("Failed to create test PEM file: %v", err)
+	}
+
+	tests := []struct {
+		name     string
+		filepath string
+		wantErr  bool
+		errContains string
+	}{
+		{
+			name:     "valid PEM file",
+			filepath: testPemFile,
+			wantErr:  false,
+		},
+		{
+			name:        "non-existent PEM file",
+			filepath:    "/nonexistent/file.pem",
+			wantErr:     true,
+			errContains: "failed to read certificates from PEM file",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := handlePemFile(tt.filepath)
+			
+			if (err != nil) != tt.wantErr {
+				t.Errorf("handlePemFile() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			
+			if tt.wantErr && err != nil && tt.errContains != "" {
+				if !strings.Contains(err.Error(), tt.errContains) {
+					t.Errorf("handlePemFile() error = %v, want containing %q", err, tt.errContains)
+				}
 			}
 		})
 	}

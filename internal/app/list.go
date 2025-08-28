@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/truststore/cli/internal/service"
+	"github.com/truststore/cli/internal/store"
 )
 
 // NewListCommand creates the list subcommand
@@ -98,12 +99,49 @@ func handleDomainSource(domain string) error {
 
 // handleFileSource handles certificate listing from local files
 func handleFileSource(source, password string) error {
-	// Placeholder for future stories (1.3 and 1.4)
-	fmt.Printf("🔍 Listing certificates from file: %s\n", source)
-	if password != "" {
-		fmt.Println("🔐 Using provided password for protected keystore")
+	// Determine file type based on extension
+	ext := strings.ToLower(filepath.Ext(source))
+	
+	switch ext {
+	case ".pem", ".crt", ".cer":
+		return handlePemFile(source)
+	case ".jks":
+		// Placeholder for future stories (1.4)
+		fmt.Printf("🔍 Listing certificates from JKS file: %s\n", source)
+		if password != "" {
+			fmt.Println("🔐 Using provided password for protected keystore")
+		}
+		fmt.Println("📋 JKS file support will be implemented in future stories")
+		return nil
+	case ".p12", ".pfx":
+		// Placeholder for future stories (1.4)
+		fmt.Printf("🔍 Listing certificates from PKCS12 file: %s\n", source)
+		if password != "" {
+			fmt.Println("🔐 Using provided password for protected keystore")
+		}
+		fmt.Println("📋 PKCS12 file support will be implemented in future stories")
+		return nil
+	default:
+		// Try PEM format as default for files without known extensions
+		return handlePemFile(source)
 	}
-	fmt.Println("📋 File-based certificate listing will be implemented in future stories")
+}
+
+// handlePemFile handles certificate listing from PEM files
+func handlePemFile(filepath string) error {
+	// Create PEM handler and formatter service
+	pemHandler := store.NewPemHandler()
+	formatter := service.NewCertificateFormatter()
+
+	// Read certificates from PEM file
+	certificates, err := pemHandler.ReadCertificates(filepath, "")
+	if err != nil {
+		return fmt.Errorf("failed to read certificates from PEM file %s: %w", filepath, err)
+	}
+
+	// Format and display certificates
+	output := formatter.FormatCertificateChain(certificates, filepath)
+	fmt.Print(output)
 
 	return nil
 }
