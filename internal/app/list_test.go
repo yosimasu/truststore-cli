@@ -1,6 +1,8 @@
 package app
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -138,6 +140,198 @@ func TestRunListCommand(t *testing.T) {
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("runListCommand() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestIsDomainSource(t *testing.T) {
+	// Create a temporary test file
+	tempDir := t.TempDir()
+	testFile := filepath.Join(tempDir, "test.pem")
+	if err := os.WriteFile(testFile, []byte("test content"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	tests := []struct {
+		name     string
+		source   string
+		expected bool
+	}{
+		// Domain cases
+		{
+			name:     "simple domain",
+			source:   "example.org",
+			expected: true,
+		},
+		{
+			name:     "domain with port",
+			source:   "example.org:443",
+			expected: true,
+		},
+		{
+			name:     "subdomain",
+			source:   "www.example.org",
+			expected: true,
+		},
+		{
+			name:     "IP address",
+			source:   "192.168.1.1",
+			expected: true,
+		},
+		{
+			name:     "IP address with port",
+			source:   "192.168.1.1:8443",
+			expected: true,
+		},
+		// File cases - by extension
+		{
+			name:     "PEM file extension",
+			source:   "certificate.pem",
+			expected: false,
+		},
+		{
+			name:     "CRT file extension",
+			source:   "certificate.crt",
+			expected: false,
+		},
+		{
+			name:     "JKS file extension",
+			source:   "keystore.jks",
+			expected: false,
+		},
+		{
+			name:     "P12 file extension",
+			source:   "keystore.p12",
+			expected: false,
+		},
+		{
+			name:     "PFX file extension",
+			source:   "keystore.pfx",
+			expected: false,
+		},
+		{
+			name:     "CER file extension",
+			source:   "certificate.cer",
+			expected: false,
+		},
+		{
+			name:     "case insensitive extension",
+			source:   "certificate.PEM",
+			expected: false,
+		},
+		// File cases - by path
+		{
+			name:     "unix path",
+			source:   "/path/to/certificate",
+			expected: false,
+		},
+		{
+			name:     "relative unix path",
+			source:   "./certificate",
+			expected: false,
+		},
+		{
+			name:     "windows path",
+			source:   "C:\\path\\to\\certificate",
+			expected: false,
+		},
+		{
+			name:     "relative windows path",
+			source:   ".\\certificate",
+			expected: false,
+		},
+		// File cases - by existence
+		{
+			name:     "existing file",
+			source:   testFile,
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isDomainSource(tt.source)
+			if result != tt.expected {
+				t.Errorf("isDomainSource(%q) = %v, want %v", tt.source, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestHandleFileSource(t *testing.T) {
+	tests := []struct {
+		name     string
+		source   string
+		password string
+		wantErr  bool
+	}{
+		{
+			name:     "file without password",
+			source:   "certificate.pem",
+			password: "",
+			wantErr:  false,
+		},
+		{
+			name:     "file with password",
+			source:   "keystore.jks",
+			password: "secret",
+			wantErr:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := handleFileSource(tt.source, tt.password)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("handleFileSource() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+// Integration test for handleDomainSource would require network access
+// For now, we'll test error handling with invalid domains
+func TestHandleDomainSource_ErrorHandling(t *testing.T) {
+	tests := []struct {
+		name        string
+		domain      string
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name:        "empty domain",
+			domain:      "",
+			wantErr:     true,
+			errContains: "failed to retrieve certificates",
+		},
+		{
+			name:        "invalid domain",
+			domain:      "invalid-domain-12345.invalid",
+			wantErr:     true,
+			errContains: "failed to retrieve certificates",
+		},
+		{
+			name:        "connection refused",
+			domain:      "127.0.0.1:12345",
+			wantErr:     true,
+			errContains: "failed to retrieve certificates",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := handleDomainSource(tt.domain)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("handleDomainSource() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if tt.wantErr && err != nil && tt.errContains != "" {
+				if !strings.Contains(err.Error(), tt.errContains) {
+					t.Errorf("handleDomainSource() error = %v, want containing %q", err, tt.errContains)
+				}
 			}
 		})
 	}

@@ -1,0 +1,47 @@
+# Quality Gate Decision - Story 1.2
+schema: 1
+story: "1.2"
+story_title: "List Certificates from a Remote Server"
+gate: PASS
+status_reason: "Exceptional implementation quality with comprehensive testing, security-conscious design, and excellent architecture adherence."
+reviewer: "Quinn (Test Architect)"
+updated: "2025-08-28T23:45:00Z"
+
+# No significant issues found
+top_issues: []
+
+# No waiver needed
+waiver: { active: false }
+
+# Quality metrics
+quality_score: 98
+expires: "2025-09-11T23:45:00Z"
+
+evidence:
+  tests_reviewed: 28
+  risks_identified: 0
+  trace:
+    ac_covered: [1, 2, 3, 4]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: "Proper TLS configuration, no hardcoded secrets, appropriate error handling, 15-second timeout prevents DoS"
+  performance:
+    status: PASS
+    notes: "15-second timeout, efficient certificate parsing, minimal memory footprint"
+  reliability:
+    status: PASS
+    notes: "Comprehensive error handling, graceful failure modes, proper resource cleanup"
+  maintainability:
+    status: PASS
+    notes: "Clean architecture with interfaces, excellent test coverage (96%+ average), clear separation of concerns"
+
+recommendations:
+  immediate: []
+  future:
+    - action: "Consider adding configurable timeout support for advanced users"
+      refs: ["internal/service/tls.go:26"]
+    - action: "Consider adding certificate validation warnings (self-signed, weak algorithms)"
+      refs: ["internal/service/formatter.go:74-81"]
