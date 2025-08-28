@@ -230,14 +230,46 @@ The project will require both unit tests for individual functions and integratio
 
 #### **Story 3.2: Comprehensive User Documentation**
 *As a new user,*
-*I want to read a `README.md` file,*
-*so that I can understand what the tool does, how to install it, and how to use all its commands.*
+*I want to read a `README.md` file and access comprehensive help text,*
+*so that I can understand what the tool does, how to install it, and how to use all its commands without external documentation.*
 
 **Acceptance Criteria:**
-1.  A high-quality `README.md` file is created in the project root.
-2.  The README includes a project description, installation instructions, and clear usage examples for every command (`list`, `add`, `rm`).
-3.  All flags (e.g., `--password`, `--target`, `--alias`) are documented with examples.
-4.  A "Contributing" section outlines how other developers can contribute to the project.
+
+**README Documentation:**
+1.  A high-quality `README.md` file is created in the project root with:
+    *   Clear project description and value proposition
+    *   Installation instructions for all platforms (macOS, Linux, Windows)
+    *   Quick start guide with the most common use cases
+    *   Complete usage examples for every command (`list`, `add`, `rm`)
+    *   All flags documented with examples (e.g., `--password`, `--target`, `--alias`, `--verbose`)
+    *   Troubleshooting section for common issues
+    *   "Contributing" section outlining how developers can contribute
+
+**Built-in Help System:**
+2.  The root `truststore --help` command displays:
+    *   Tool description and version
+    *   Available subcommands with brief descriptions
+    *   Global flags (e.g., `--verbose`, `--help`)
+    *   Usage examples for common workflows
+
+3.  Each subcommand provides comprehensive help via `truststore <command> --help`:
+    *   **`truststore list --help`**: Shows all supported source types (remote server, PEM, JKS, PKCS12), required and optional flags, and usage examples
+    *   **`truststore add --help`**: Documents source and target options, password handling, alias specification, and complete workflow examples
+    *   **`truststore rm --help`**: Explains source identification, target specification, and removal confirmation process
+
+**Help Text Quality Standards:**
+4.  All help text must be:
+    *   Consistent in format and terminology across all commands
+    *   Include practical examples for each major use case
+    *   Explain flag interactions and dependencies (e.g., `--password` with JKS/PKCS12 files)
+    *   Provide clear error message explanations and resolutions
+
+**Validation Requirements:**
+5.  Manual testing confirms that:
+    *   A user can accomplish any documented workflow using only the built-in help
+    *   All flags and combinations mentioned in help text work correctly
+    *   Help text examples can be copy-pasted and executed successfully
+    *   Error messages referenced in documentation match actual CLI output
 
 ---
 

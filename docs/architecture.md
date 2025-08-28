@@ -234,6 +234,16 @@ sequenceDiagram
 ├── cmd/
 │   └── truststore/
 │       └── main.go           # Entry point, Cobra command setup & wiring
+├── dist/                     # Build output directory (gitignored)
+│   ├── truststore            # Current platform binary (symlink or copy)
+│   ├── darwin/
+│   │   ├── amd64/truststore  # macOS Intel binary
+│   │   └── arm64/truststore  # macOS Apple Silicon binary
+│   ├── linux/
+│   │   ├── amd64/truststore  # Linux x64 binary
+│   │   └── arm64/truststore  # Linux ARM64 binary
+│   └── windows/
+│       └── amd64/truststore.exe  # Windows x64 binary
 ├── docs/
 │   ├── prd.md
 │   └── architecture.md
