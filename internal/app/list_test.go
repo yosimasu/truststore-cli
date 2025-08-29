@@ -459,7 +459,7 @@ func TestHandleDomainSource_ErrorHandling(t *testing.T) {
 func TestPromptForPassword(t *testing.T) {
 	// This test verifies that the password prompt function exists and handles non-terminal properly
 	// We can't easily test the interactive prompt in automated tests
-	
+
 	// Test the error case when not running in a terminal
 	password, err := promptForPassword()
 	if err == nil {

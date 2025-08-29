@@ -30,6 +30,7 @@ from various sources including remote servers and local files.`,
 
 	// Register subcommands
 	cmd.AddCommand(app.NewListCommand())
+	cmd.AddCommand(app.NewAddCommand())
 
 	return cmd
 }

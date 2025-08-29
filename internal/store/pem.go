@@ -60,9 +60,65 @@ func (h *PemHandler) ReadCertificates(filepath string, password string) ([]*x509
 	return certificates, nil
 }
 
-// AddCertificate adds a certificate to the PEM file (placeholder for future stories)
+// AddCertificate adds a certificate to the PEM file
 func (h *PemHandler) AddCertificate(filepath string, cert *x509.Certificate, password string) error {
-	return fmt.Errorf("AddCertificate not implemented for PEM files - will be added in future stories")
+	if cert == nil {
+		return fmt.Errorf("certificate cannot be nil")
+	}
+
+	// Check if certificate already exists in file
+	if _, err := os.Stat(filepath); err == nil {
+		exists, err := h.certificateExists(filepath, cert)
+		if err != nil {
+			return fmt.Errorf("failed to check if certificate exists: %w", err)
+		}
+		if exists {
+			return fmt.Errorf("certificate already exists in %s", filepath)
+		}
+	}
+
+	// Encode certificate as PEM
+	pemBlock := &pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: cert.Raw,
+	}
+
+	pemData := pem.EncodeToMemory(pemBlock)
+	if pemData == nil {
+		return fmt.Errorf("failed to encode certificate as PEM")
+	}
+
+	// Open file for appending (create if doesn't exist)
+	file, err := os.OpenFile(filepath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to open file %s: %w", filepath, err)
+	}
+	defer file.Close()
+
+	// Write PEM data to file
+	_, err = file.Write(pemData)
+	if err != nil {
+		return fmt.Errorf("failed to write certificate to file %s: %w", filepath, err)
+	}
+
+	return nil
+}
+
+// certificateExists checks if a certificate already exists in the PEM file
+func (h *PemHandler) certificateExists(filepath string, cert *x509.Certificate) (bool, error) {
+	existingCerts, err := h.ReadCertificates(filepath, "")
+	if err != nil {
+		return false, err
+	}
+
+	// Compare with each existing certificate
+	for _, existing := range existingCerts {
+		if cert.Equal(existing) {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 // RemoveCertificate removes a certificate from the PEM file (placeholder for future stories)

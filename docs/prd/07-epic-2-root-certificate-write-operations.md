@@ -34,6 +34,7 @@
 4. The identified root certificate is appended to the target PEM file. If the file doesn't exist, it is created.
 5. A clear success message is printed to the console.
 6. File write permissions and other I/O errors are handled gracefully.
+7. A loading indicator is displayed while retrieving certificates from remote servers and completing certificate chains.
 
 ***
 

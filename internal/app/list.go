@@ -254,17 +254,17 @@ func promptForPassword() (string, error) {
 	if !terminal.IsTerminal(int(syscall.Stdin)) {
 		return "", fmt.Errorf("password prompt requires an interactive terminal")
 	}
-	
+
 	fmt.Print("Enter password: ")
-	
+
 	// Read password from terminal without echoing
 	passwordBytes, err := terminal.ReadPassword(int(syscall.Stdin))
 	if err != nil {
 		return "", err
 	}
-	
+
 	// Print newline after password input
 	fmt.Println()
-	
+
 	return string(passwordBytes), nil
 }
