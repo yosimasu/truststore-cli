@@ -6,30 +6,9 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
-const testCertPEM = `-----BEGIN CERTIFICATE-----
-MIIDozCCAougAwIBAgIUfdhU6GQU6oD22HvwXjzQ03Xqh78wDQYJKoZIhvcNAQEL
-BQAwYTELMAkGA1UEBhMCVVMxCzAJBgNVBAgMAkNBMRYwFAYDVQQHDA1TYW4gRnJh
-bmNpc2NvMRIwEAYDVQQKDAlUZXN0IENvcnAxGTAXBgNVBAMMEHRlc3QuZXhhbXBs
-ZS5jb20wHhcNMjUwODI4MTYwNTU0WhcNMjYwODI4MTYwNTU0WjBhMQswCQYDVQQG
-EwJVUzELMAkGA1UECAwCQ0ExFjAUBgNVBAcMDVNhbiBGcmFuY2lzY28xEjAQBgNV
-BAoMCVRlc3QgQ29ycDEZMBcGA1UEAwwQdGVzdC5leGFtcGxlLmNvbTCCASIwDQYJ
-KoZIhvcNAQEBBQADggEPADCCAQoCggEBAMPXfV/BNis9ZV5OcbwdjFisiKN2AqIG
-w+riNCaNlBRwIhX2geijDK5r8U+r93k3LE/yIm6DZzLGqkBYDHj7e1Ba1k6deIak
-UYlU5gcdrDOlvNOf5c7TnU2+kvM5MKl/1XHd5AKvUWpp0BLbX8ElDSKmZMMhpwJ7
-aywAR5S0Fu9rmmJlJ85qb3Adk5TvZDDH2eXhvhMViwk1eAXtMTn0isNyepXEVSiy
-484lIeDK7TZz231qAeKe1TJch3WWvCIeRO52XEBGq4zON0hcw8daG0wesuuMVGp2
-Nf7trM35U18rlBYkMkMSabMoFQly6W6tC44vagZfhCpQDIgp/xgVTLkCAwEAAaNT
-MFEwHQYDVR0OBBYEFGccvF8TPjDUteZyZKxbgSlKvrJzMB8GA1UdIwQYMBaAFGcc
-vF8TPjDUteZyZKxbgSlKvrJzMA8GA1UdEwEB/wQFMAMBAf8wDQYJKoZIhvcNAQEL
-BQADggEBAKat9EvGNsQz9coc7SfBJiJbDsqXrp5ItuyGp46KQwGxd/Id9oBRk51W
-2GbsFH1Rkm2oAW+VqWroRBIHdyPSPWAcxIP+by4+jWaPJWWXb+75BpCitV+FbM+A
-nrgNC8ez4uZ8a8iJ21bGl/b46S8VkzIQ9DOoXqIvxZS6Gqimw8EgrFQYb3ztdIyT
-B+N1jOlP2YAabbhOCsi+HFgniarAyVWaEOSLIQZATO4h0WaQFznlvE3O2JPtAXrW
-/DMiQajQYDidCplTPlqi7YsY1Bi2MA8iNcf5NehNgV7inuaTi1isIBxX5y8OQXEV
-iDAAHBIw3Qui4t7XMnqz+8Y7nr3PSQg=
------END CERTIFICATE-----`
 
 func TestNewCTLogClient(t *testing.T) {
 	client := NewCTLogClient()
@@ -125,11 +104,9 @@ func TestSearchCertificatesByIssuer(t *testing.T) {
 			}))
 			defer server.Close()
 
-			// Create client with mock server URL
-			client := &ctLogClient{
-				baseURL:    server.URL + "/",
-				httpClient: server.Client(),
-			}
+			// Create client using new constructor and override base URL
+			client := NewCTLogClientWithHTTPClient(NewHTTPClient(DefaultConfig())).(*ctLogClient)
+			client.baseURL = server.URL + "/"
 
 			entries, err := client.SearchCertificatesByIssuer(tt.issuerName)
 
@@ -228,11 +205,9 @@ func TestDownloadCertificate(t *testing.T) {
 			}))
 			defer server.Close()
 
-			// Create client with mock server URL
-			client := &ctLogClient{
-				baseURL:    server.URL + "/",
-				httpClient: server.Client(),
-			}
+			// Create client using new constructor and override base URL
+			client := NewCTLogClientWithHTTPClient(NewHTTPClient(DefaultConfig())).(*ctLogClient)
+			client.baseURL = server.URL + "/"
 
 			cert, err := client.DownloadCertificate(tt.id)
 
@@ -255,10 +230,14 @@ func TestDownloadCertificate(t *testing.T) {
 
 func TestCTLogClient_NetworkFailure(t *testing.T) {
 	// Create client with invalid URL to simulate network failure
-	client := &ctLogClient{
-		baseURL:    "http://invalid-url-that-does-not-exist.invalid/",
-		httpClient: &http.Client{},
+	config := &Config{
+		Timeout:    100 * time.Millisecond,
+		MaxRetries: 1,
+		BaseDelay:  1 * time.Millisecond,
+		MaxDelay:   1 * time.Millisecond,
 	}
+	client := NewCTLogClientWithHTTPClient(NewHTTPClient(config)).(*ctLogClient)
+	client.baseURL = "http://invalid-url-that-does-not-exist.invalid/"
 
 	// Test search network failure
 	_, err := client.SearchCertificatesByIssuer("Test CA")

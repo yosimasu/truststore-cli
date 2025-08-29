@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -30,24 +29,39 @@ type CTLogEntry struct {
 
 // ctLogClient implements CTLogClient for crt.sh API
 type ctLogClient struct {
-	baseURL    string
-	httpClient *http.Client
+	baseURL         string
+	httpClient      HTTPClient
+	responseHandler *ResponseHandler
 }
 
 // NewCTLogClient creates a new CT log client with 15-second timeout
 func NewCTLogClient() CTLogClient {
+	return NewCTLogClientWithHTTPClient(nil)
+}
+
+// NewCTLogClientWithHTTPClient creates a new CT log client with custom HTTP client
+func NewCTLogClientWithHTTPClient(httpClient HTTPClient) CTLogClient {
+	if httpClient == nil {
+		config := &Config{
+			Timeout:    15 * time.Second,
+			MaxRetries: 3,
+			BaseDelay:  100 * time.Millisecond,
+			MaxDelay:   5 * time.Second,
+		}
+		httpClient = NewHTTPClient(config)
+	}
+
 	return &ctLogClient{
-		baseURL: "https://crt.sh/",
-		httpClient: &http.Client{
-			Timeout: 15 * time.Second,
-		},
+		baseURL:         "https://crt.sh/",
+		httpClient:      httpClient,
+		responseHandler: NewResponseHandler(),
 	}
 }
 
 // SearchCertificatesByIssuer searches for certificates by issuer common name
 func (c *ctLogClient) SearchCertificatesByIssuer(issuerName string) ([]CTLogEntry, error) {
 	if issuerName == "" {
-		return nil, fmt.Errorf("issuer name cannot be empty")
+		return nil, NewValidationError("issuer name cannot be empty")
 	}
 
 	// Build search URL
@@ -58,32 +72,28 @@ func (c *ctLogClient) SearchCertificatesByIssuer(issuerName string) ([]CTLogEntr
 	
 	searchURL := c.baseURL + "?" + params.Encode()
 
-	// Make HTTP request
+	// Make HTTP request using new infrastructure
 	resp, err := c.httpClient.Get(searchURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to search certificates for issuer %q: %w", issuerName, err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("crt.sh API returned status %d for issuer %q", resp.StatusCode, issuerName)
+		classifiedErr := ClassifyError(err, searchURL)
+		return nil, fmt.Errorf("failed to search certificates for issuer %q: %w", issuerName, classifiedErr)
 	}
 
-	// Read response body
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
+	// Use response handler for processing
+	var body string
+	if err := c.responseHandler.ProcessResponse(resp, &body, http.StatusOK); err != nil {
+		return nil, fmt.Errorf("failed to process search response for issuer %q: %w", issuerName, err)
 	}
 
 	// Handle empty results
-	if len(body) == 0 || strings.TrimSpace(string(body)) == "" {
+	if strings.TrimSpace(body) == "" {
 		return []CTLogEntry{}, nil
 	}
 
 	// Parse JSON response
 	var entries []CTLogEntry
-	if err := json.Unmarshal(body, &entries); err != nil {
-		return nil, fmt.Errorf("failed to parse search results for issuer %q: %w", issuerName, err)
+	if err := json.Unmarshal([]byte(body), &entries); err != nil {
+		return nil, NewParsingError(fmt.Sprintf("failed to parse search results for issuer %q", issuerName), err)
 	}
 
 	return entries, nil
@@ -92,43 +102,39 @@ func (c *ctLogClient) SearchCertificatesByIssuer(issuerName string) ([]CTLogEntr
 // DownloadCertificate downloads a certificate by its crt.sh ID
 func (c *ctLogClient) DownloadCertificate(id int) (*x509.Certificate, error) {
 	if id <= 0 {
-		return nil, fmt.Errorf("invalid certificate ID: %d", id)
+		return nil, NewValidationError(fmt.Sprintf("invalid certificate ID: %d", id))
 	}
 
 	// Build download URL
 	downloadURL := fmt.Sprintf("%s?d=%d", c.baseURL, id)
 
-	// Make HTTP request
+	// Make HTTP request using new infrastructure
 	resp, err := c.httpClient.Get(downloadURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to download certificate with ID %d: %w", id, err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("crt.sh API returned status %d for certificate ID %d", resp.StatusCode, id)
+		classifiedErr := ClassifyError(err, downloadURL)
+		return nil, fmt.Errorf("failed to download certificate with ID %d: %w", id, classifiedErr)
 	}
 
-	// Read response body
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read certificate data: %w", err)
+	// Use response handler for processing
+	var body string
+	if err := c.responseHandler.ProcessResponse(resp, &body, http.StatusOK); err != nil {
+		return nil, fmt.Errorf("failed to process download response for certificate ID %d: %w", id, err)
 	}
 
-	if len(body) == 0 {
-		return nil, fmt.Errorf("received empty certificate data for ID %d", id)
+	if body == "" {
+		return nil, NewParsingError(fmt.Sprintf("received empty certificate data for ID %d", id), nil)
 	}
 
 	// Parse PEM-encoded certificate
-	block, _ := pem.Decode(body)
+	block, _ := pem.Decode([]byte(body))
 	if block == nil || block.Type != "CERTIFICATE" {
-		return nil, fmt.Errorf("invalid PEM certificate data for ID %d", id)
+		return nil, NewParsingError(fmt.Sprintf("invalid PEM certificate data for ID %d", id), nil)
 	}
 
 	// Parse x509 certificate
 	cert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse certificate for ID %d: %w", id, err)
+		return nil, NewParsingError(fmt.Sprintf("failed to parse certificate for ID %d", id), err)
 	}
 
 	return cert, nil
