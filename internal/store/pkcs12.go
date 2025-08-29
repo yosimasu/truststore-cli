@@ -1,12 +1,14 @@
 package store
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
 	"fmt"
 	"os"
 	"strings"
 
-	"software.sslmate.com/src/go-pkcs12"
+	pkcs12 "software.sslmate.com/src/go-pkcs12"
 )
 
 // Pkcs12Handler implements the Truststore interface for PKCS12 files
@@ -64,9 +66,75 @@ func (h *Pkcs12Handler) ReadCertificates(filepath string, password string) ([]*x
 	return certificates, nil
 }
 
-// AddCertificate adds a certificate to the PKCS12 file (placeholder for future stories)
+// AddCertificate adds a certificate to the PKCS12 file
 func (h *Pkcs12Handler) AddCertificate(filepath string, cert *x509.Certificate, password string) error {
-	return fmt.Errorf("AddCertificate not implemented for PKCS12 files - will be added in future stories")
+	if password == "" {
+		return fmt.Errorf("password required for PKCS12 file operations")
+	}
+
+	var existingCerts []*x509.Certificate
+
+	// Check if file exists and load existing certificates
+	if _, err := os.Stat(filepath); !os.IsNotExist(err) {
+		// File exists, load existing certificates
+		pkcs12Data, err := os.ReadFile(filepath)
+		if err != nil {
+			return fmt.Errorf("failed to read PKCS12 file %s: %w", filepath, err)
+		}
+
+		// Try to decode existing PKCS12 data
+		_, certificate, caCerts, err := pkcs12.DecodeChain(pkcs12Data, password)
+		if err != nil {
+			if isPkcs12PasswordError(err) {
+				return fmt.Errorf("incorrect password for PKCS12 file %s: provide the correct password", filepath)
+			}
+			return fmt.Errorf("failed to decode PKCS12 file %s: %w", filepath, err)
+		}
+
+		// Collect existing certificates
+		if certificate != nil {
+			existingCerts = append(existingCerts, certificate)
+		}
+		if caCerts != nil {
+			existingCerts = append(existingCerts, caCerts...)
+		}
+	}
+
+	// Add the new certificate to the collection
+	existingCerts = append(existingCerts, cert)
+
+	// Create new PKCS12 data with all certificates
+	// Use the last certificate as the main certificate, others as CA certs
+	var mainCert *x509.Certificate
+	var caCerts []*x509.Certificate
+
+	if len(existingCerts) > 0 {
+		mainCert = existingCerts[len(existingCerts)-1]
+		if len(existingCerts) > 1 {
+			caCerts = existingCerts[:len(existingCerts)-1]
+		}
+	}
+
+	// For truststore-only operations, we need to create a dummy private key
+	// since PKCS12 format requires a private key in the structure
+	dummyKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return fmt.Errorf("failed to generate dummy private key: %w", err)
+	}
+
+	// Create PKCS12 data with dummy key and certificates
+	pkcs12Data, err := pkcs12.Legacy.Encode(dummyKey, mainCert, caCerts, password)
+	if err != nil {
+		return fmt.Errorf("failed to encode PKCS12 data: %w", err)
+	}
+
+	// Write to file
+	err = os.WriteFile(filepath, pkcs12Data, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write PKCS12 file %s: %w", filepath, err)
+	}
+
+	return nil
 }
 
 // RemoveCertificate removes a certificate from the PKCS12 file (placeholder for future stories)

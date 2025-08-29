@@ -1,10 +1,16 @@
 package store
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"math/big"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestJksHandler_ReadCertificates_Success(t *testing.T) {
@@ -86,20 +92,7 @@ func TestJksHandler_ReadCertificates_InvalidFile(t *testing.T) {
 	}
 }
 
-func TestJksHandler_AddCertificate_NotImplemented(t *testing.T) {
-	handler := NewJksHandler()
-
-	err := handler.AddCertificate("test.jks", nil, "password")
-
-	if err == nil {
-		t.Fatal("Expected not implemented error, got none")
-	}
-
-	errStr := err.Error()
-	if !strings.Contains(errStr, "not implemented") {
-		t.Errorf("Expected 'not implemented' in error message, got: %s", errStr)
-	}
-}
+// Old test removed - AddCertificate is now implemented
 
 func TestJksHandler_RemoveCertificate_NotImplemented(t *testing.T) {
 	handler := NewJksHandler()
@@ -152,4 +145,186 @@ type testError struct {
 
 func (e *testError) Error() string {
 	return e.msg
+}
+
+func TestJksHandler_AddCertificate_NewFile(t *testing.T) {
+	handler := NewJksHandler()
+
+	// Create temporary directory
+	tempDir, err := os.MkdirTemp("", "jks-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Generate a test certificate
+	cert := generateTestCert(t)
+
+	// Add certificate to new JKS file
+	jksFile := filepath.Join(tempDir, "test.jks")
+	password := "testpass"
+
+	err = handler.AddCertificate(jksFile, cert, password)
+	if err != nil {
+		t.Fatalf("Failed to add certificate to new JKS file: %v", err)
+	}
+
+	// Verify file was created
+	if _, err := os.Stat(jksFile); os.IsNotExist(err) {
+		t.Fatal("JKS file was not created")
+	}
+
+	// Read back the certificates to verify
+	certs, err := handler.ReadCertificates(jksFile, password)
+	if err != nil {
+		t.Fatalf("Failed to read certificates from JKS file: %v", err)
+	}
+
+	if len(certs) != 1 {
+		t.Errorf("Expected 1 certificate, got %d", len(certs))
+	}
+
+	// Verify certificate content matches
+	if !cert.Equal(certs[0]) {
+		t.Error("Certificate content does not match")
+	}
+}
+
+func TestJksHandler_AddCertificate_ExistingFile(t *testing.T) {
+	handler := NewJksHandler()
+
+	// Create temporary directory
+	tempDir, err := os.MkdirTemp("", "jks-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	jksFile := filepath.Join(tempDir, "test.jks")
+	password := "testpass"
+
+	// Add first certificate
+	cert1 := generateTestCert(t)
+	err = handler.AddCertificate(jksFile, cert1, password)
+	if err != nil {
+		t.Fatalf("Failed to add first certificate: %v", err)
+	}
+
+	// Add second certificate to existing file
+	cert2 := generateTestCert(t)
+	err = handler.AddCertificate(jksFile, cert2, password)
+	if err != nil {
+		t.Fatalf("Failed to add second certificate: %v", err)
+	}
+
+	// Verify both certificates are present
+	certs, err := handler.ReadCertificates(jksFile, password)
+	if err != nil {
+		t.Fatalf("Failed to read certificates: %v", err)
+	}
+
+	if len(certs) != 2 {
+		t.Errorf("Expected 2 certificates, got %d", len(certs))
+	}
+}
+
+func TestJksHandler_AddCertificate_IncorrectPassword(t *testing.T) {
+	handler := NewJksHandler()
+
+	// Use existing test file
+	testFile := filepath.Join("testdata", "test.jks")
+	cert := generateTestCert(t)
+
+	// Try to add certificate with wrong password
+	err := handler.AddCertificate(testFile, cert, "wrongpassword")
+	if err == nil {
+		t.Fatal("Expected error for incorrect password, got none")
+	}
+
+	errStr := err.Error()
+	if !strings.Contains(errStr, "incorrect password") {
+		t.Errorf("Expected error message to mention incorrect password, got: %s", errStr)
+	}
+}
+
+func TestJksHandler_AddCertificate_EmptyPassword(t *testing.T) {
+	handler := NewJksHandler()
+
+	// Create temporary file path
+	tempDir, err := os.MkdirTemp("", "jks-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	jksFile := filepath.Join(tempDir, "test.jks")
+	cert := generateTestCert(t)
+
+	// Try to add certificate with empty password
+	err = handler.AddCertificate(jksFile, cert, "")
+	if err == nil {
+		t.Fatal("Expected error for empty password, got none")
+	}
+
+	if !strings.Contains(err.Error(), "password required") {
+		t.Errorf("Expected error message to mention password required, got: %s", err.Error())
+	}
+}
+
+func TestGenerateCertificateAlias(t *testing.T) {
+	// Generate multiple aliases
+	alias1 := generateCertificateAlias()
+	alias2 := generateCertificateAlias()
+
+	// Verify format
+	if !strings.HasPrefix(alias1, "cert-") {
+		t.Errorf("Expected alias to start with 'cert-', got: %s", alias1)
+	}
+
+	// Verify uniqueness (should be different due to timestamp)
+	if alias1 == alias2 {
+		t.Error("Expected aliases to be unique")
+	}
+}
+
+// generateTestCert creates a test certificate for testing
+func generateTestCert(t *testing.T) *x509.Certificate {
+	// Generate private key
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("Failed to generate private key: %v", err)
+	}
+
+	// Certificate template
+	template := x509.Certificate{
+		SerialNumber: big.NewInt(time.Now().UnixNano()),
+		Subject: pkix.Name{
+			Organization:  []string{"Test Org"},
+			Country:       []string{"US"},
+			Province:      []string{"CA"},
+			Locality:      []string{"San Francisco"},
+			StreetAddress: []string{""},
+			PostalCode:    []string{""},
+			CommonName:    "test.example.com",
+		},
+		NotBefore:    time.Now(),
+		NotAfter:     time.Now().Add(365 * 24 * time.Hour),
+		KeyUsage:     x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		IPAddresses:  nil,
+	}
+
+	// Create certificate
+	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, &privateKey.PublicKey, privateKey)
+	if err != nil {
+		t.Fatalf("Failed to create certificate: %v", err)
+	}
+
+	// Parse certificate
+	cert, err := x509.ParseCertificate(certDER)
+	if err != nil {
+		t.Fatalf("Failed to parse certificate: %v", err)
+	}
+
+	return cert
 }

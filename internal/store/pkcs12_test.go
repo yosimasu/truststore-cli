@@ -1,10 +1,16 @@
 package store
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"math/big"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestPkcs12Handler_ReadCertificates_WithPassword(t *testing.T) {
@@ -108,18 +114,108 @@ func TestPkcs12Handler_ReadCertificates_InvalidFile(t *testing.T) {
 	}
 }
 
-func TestPkcs12Handler_AddCertificate_NotImplemented(t *testing.T) {
+func TestPkcs12Handler_AddCertificate_NewFile(t *testing.T) {
 	handler := NewPkcs12Handler()
 
-	err := handler.AddCertificate("test.p12", nil, "password")
+	// Create temporary directory
+	tempDir, err := os.MkdirTemp("", "pkcs12-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
 
-	if err == nil {
-		t.Fatal("Expected not implemented error, got none")
+	// Generate a test certificate
+	cert := generateTestCertForPkcs12(t)
+
+	// Add certificate to new PKCS12 file
+	p12File := filepath.Join(tempDir, "test.p12")
+	password := "testpass"
+
+	err = handler.AddCertificate(p12File, cert, password)
+	if err != nil {
+		t.Fatalf("Failed to add certificate to new PKCS12 file: %v", err)
 	}
 
-	errStr := err.Error()
-	if !strings.Contains(errStr, "not implemented") {
-		t.Errorf("Expected 'not implemented' in error message, got: %s", errStr)
+	// Verify file was created
+	if _, err := os.Stat(p12File); os.IsNotExist(err) {
+		t.Fatal("PKCS12 file was not created")
+	}
+
+	// Read back the certificates to verify
+	certs, err := handler.ReadCertificates(p12File, password)
+	if err != nil {
+		t.Fatalf("Failed to read certificates from PKCS12 file: %v", err)
+	}
+
+	if len(certs) != 1 {
+		t.Errorf("Expected 1 certificate, got %d", len(certs))
+	}
+
+	// Verify certificate content matches
+	if !cert.Equal(certs[0]) {
+		t.Error("Certificate content does not match")
+	}
+}
+
+func TestPkcs12Handler_AddCertificate_ExistingFile(t *testing.T) {
+	handler := NewPkcs12Handler()
+
+	// Create temporary directory
+	tempDir, err := os.MkdirTemp("", "pkcs12-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	p12File := filepath.Join(tempDir, "test.p12")
+	password := "testpass"
+
+	// Add first certificate
+	cert1 := generateTestCertForPkcs12(t)
+	err = handler.AddCertificate(p12File, cert1, password)
+	if err != nil {
+		t.Fatalf("Failed to add first certificate: %v", err)
+	}
+
+	// Add second certificate to existing file
+	cert2 := generateTestCertForPkcs12(t)
+	err = handler.AddCertificate(p12File, cert2, password)
+	if err != nil {
+		t.Fatalf("Failed to add second certificate: %v", err)
+	}
+
+	// Verify both certificates are present
+	certs, err := handler.ReadCertificates(p12File, password)
+	if err != nil {
+		t.Fatalf("Failed to read certificates: %v", err)
+	}
+
+	if len(certs) != 2 {
+		t.Errorf("Expected 2 certificates, got %d", len(certs))
+	}
+}
+
+func TestPkcs12Handler_AddCertificate_EmptyPassword(t *testing.T) {
+	handler := NewPkcs12Handler()
+
+	// Create temporary file path
+	tempDir, err := os.MkdirTemp("", "pkcs12-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	p12File := filepath.Join(tempDir, "test.p12")
+	cert := generateTestCertForPkcs12(t)
+
+	// Try to add certificate with empty password
+	err = handler.AddCertificate(p12File, cert, "")
+	if err == nil {
+		t.Fatal("Expected error for empty password, got none")
+	}
+
+	if !strings.Contains(err.Error(), "password required") {
+		t.Errorf("Expected error message to mention password required, got: %s", err.Error())
 	}
 }
 
@@ -166,4 +262,46 @@ func TestIsPkcs12PasswordError(t *testing.T) {
 			}
 		})
 	}
+}
+
+// generateTestCertForPkcs12 creates a test certificate for PKCS12 testing
+func generateTestCertForPkcs12(t *testing.T) *x509.Certificate {
+	// Generate private key
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("Failed to generate private key: %v", err)
+	}
+
+	// Certificate template
+	template := x509.Certificate{
+		SerialNumber: big.NewInt(time.Now().UnixNano()),
+		Subject: pkix.Name{
+			Organization:  []string{"Test Org"},
+			Country:       []string{"US"},
+			Province:      []string{"CA"},
+			Locality:      []string{"San Francisco"},
+			StreetAddress: []string{""},
+			PostalCode:    []string{""},
+			CommonName:    "test.example.com",
+		},
+		NotBefore:    time.Now(),
+		NotAfter:     time.Now().Add(365 * 24 * time.Hour),
+		KeyUsage:     x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		IPAddresses:  nil,
+	}
+
+	// Create certificate
+	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, &privateKey.PublicKey, privateKey)
+	if err != nil {
+		t.Fatalf("Failed to create certificate: %v", err)
+	}
+
+	// Parse certificate
+	cert, err := x509.ParseCertificate(certDER)
+	if err != nil {
+		t.Fatalf("Failed to parse certificate: %v", err)
+	}
+
+	return cert
 }

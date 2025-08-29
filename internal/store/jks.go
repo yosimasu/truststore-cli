@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
-	"github.com/pavlo-v-chernykh/keystore-go/v4"
+	keystore "github.com/pavlo-v-chernykh/keystore-go/v4"
 )
 
 // JksHandler implements the Truststore interface for JKS files
@@ -80,14 +81,76 @@ func (h *JksHandler) ReadCertificates(filepath string, password string) ([]*x509
 	return certificates, nil
 }
 
-// AddCertificate adds a certificate to the JKS file (placeholder for future stories)
+// AddCertificate adds a certificate to the JKS file
 func (h *JksHandler) AddCertificate(filepath string, cert *x509.Certificate, password string) error {
-	return fmt.Errorf("AddCertificate not implemented for JKS files - will be added in future stories")
+	if password == "" {
+		return fmt.Errorf("password required for JKS file operations")
+	}
+
+	// Generate alias for the certificate
+	alias := generateCertificateAlias()
+
+	// Check if file exists
+	var ks keystore.KeyStore
+	if _, err := os.Stat(filepath); os.IsNotExist(err) {
+		// Create new keystore
+		ks = keystore.New()
+	} else {
+		// Load existing keystore
+		ks = keystore.New()
+		file, err := os.Open(filepath)
+		if err != nil {
+			return fmt.Errorf("failed to open JKS file %s: %w", filepath, err)
+		}
+		
+		err = ks.Load(file, []byte(password))
+		file.Close()
+		if err != nil {
+			if isPasswordError(err) {
+				return fmt.Errorf("incorrect password for JKS file %s: provide the correct password", filepath)
+			}
+			return fmt.Errorf("failed to load JKS file %s: %w", filepath, err)
+		}
+	}
+
+	// Create trusted certificate entry
+	certEntry := keystore.TrustedCertificateEntry{
+		CreationTime: time.Now(),
+		Certificate: keystore.Certificate{
+			Type:    "X509",
+			Content: cert.Raw,
+		},
+	}
+
+	// Add certificate to keystore
+	err := ks.SetTrustedCertificateEntry(alias, certEntry)
+	if err != nil {
+		return fmt.Errorf("failed to add certificate to keystore: %w", err)
+	}
+
+	// Save keystore to file
+	file, err := os.Create(filepath)
+	if err != nil {
+		return fmt.Errorf("failed to create JKS file %s: %w", filepath, err)
+	}
+	defer file.Close()
+
+	err = ks.Store(file, []byte(password))
+	if err != nil {
+		return fmt.Errorf("failed to save JKS file %s: %w", filepath, err)
+	}
+
+	return nil
 }
 
 // RemoveCertificate removes a certificate from the JKS file (placeholder for future stories)
 func (h *JksHandler) RemoveCertificate(filepath string, cert *x509.Certificate, password string) error {
 	return fmt.Errorf("RemoveCertificate not implemented for JKS files - will be added in future stories")
+}
+
+// generateCertificateAlias creates a unique alias for a certificate
+func generateCertificateAlias() string {
+	return fmt.Sprintf("cert-%d", time.Now().UnixNano())
 }
 
 // isPasswordError checks if the error is related to incorrect password

@@ -36,6 +36,15 @@ func TestNewAddCommand(t *testing.T) {
 		t.Error("Expected 'target' flag to exist")
 	}
 
+	// Test that target-password flag exists and has correct NoOptDefVal
+	targetPasswordFlag := cmd.Flags().Lookup("target-password")
+	if targetPasswordFlag == nil {
+		t.Error("Expected 'target-password' flag to exist")
+	}
+	if targetPasswordFlag.NoOptDefVal != "PROMPT" {
+		t.Errorf("Expected NoOptDefVal to be 'PROMPT', got '%s'", targetPasswordFlag.NoOptDefVal)
+	}
+
 	// Check if target flag is marked as required - verified through execution test later
 
 	// Test that exactly one argument is required
@@ -435,4 +444,88 @@ func generateTestCertificate() (*x509.Certificate, error) {
 	}
 
 	return cert, nil
+}
+
+func TestGetTargetFileType(t *testing.T) {
+	tests := []struct {
+		name     string
+		filename string
+		expected string
+	}{
+		{
+			name:     "JKS file",
+			filename: "keystore.jks",
+			expected: "jks",
+		},
+		{
+			name:     "PKCS12 .p12 file",
+			filename: "keystore.p12",
+			expected: "pkcs12",
+		},
+		{
+			name:     "PKCS12 .pfx file",
+			filename: "keystore.pfx",
+			expected: "pkcs12",
+		},
+		{
+			name:     "PEM file",
+			filename: "certificates.pem",
+			expected: "pem",
+		},
+		{
+			name:     "No extension defaults to PEM",
+			filename: "certificates",
+			expected: "pem",
+		},
+		{
+			name:     "Unknown extension defaults to PEM",
+			filename: "certificates.xyz",
+			expected: "pem",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := getTargetFileType(tt.filename)
+			if result != tt.expected {
+				t.Errorf("getTargetFileType(%s) = %s, want %s", tt.filename, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestAddCertificateToTargetPEM(t *testing.T) {
+	// Create temporary directory
+	tempDir, err := os.MkdirTemp("", "truststore-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Generate a test certificate
+	cert, err := generateTestCertificate()
+	if err != nil {
+		t.Fatalf("Failed to generate test certificate: %v", err)
+	}
+
+	// Test PEM file addition (no password needed)
+	pemFile := filepath.Join(tempDir, "test.pem")
+	err = addCertificateToTarget(pemFile, cert, "")
+	if err != nil {
+		t.Fatalf("Failed to add certificate to PEM file: %v", err)
+	}
+
+	// Verify file was created and contains certificate
+	if _, err := os.Stat(pemFile); os.IsNotExist(err) {
+		t.Error("PEM file was not created")
+	}
+
+	content, err := os.ReadFile(pemFile)
+	if err != nil {
+		t.Fatalf("Failed to read PEM file: %v", err)
+	}
+
+	if !strings.Contains(string(content), "BEGIN CERTIFICATE") {
+		t.Error("PEM file does not contain certificate")
+	}
 }

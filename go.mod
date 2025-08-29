@@ -7,7 +7,7 @@ require github.com/spf13/cobra v1.8.0
 require (
 	golang.org/x/crypto v0.11.0
 	golang.org/x/sys v0.10.0 // indirect
-	golang.org/x/term v0.10.0 // indirect
+	golang.org/x/term v0.10.0
 )
 
 require (

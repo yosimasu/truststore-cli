@@ -8,12 +8,14 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/truststore/cli/internal/client"
 	"github.com/truststore/cli/internal/service"
 	"github.com/truststore/cli/internal/store"
+	"golang.org/x/term"
 )
 
 // NewAddCommand creates the add subcommand
@@ -41,6 +43,14 @@ Examples:
 	cmd.Flags().StringP("target", "t", "", "Target truststore file path (required)")
 	cmd.MarkFlagRequired("target")
 
+	// Add password flag for reading source keystore files
+	cmd.Flags().StringP("password", "p", "", "Password for source keystore (required when source is JKS/PKCS12). Use --password=<password> or --password for interactive prompt")
+	cmd.Flags().Lookup("password").NoOptDefVal = "PROMPT"
+
+	// Add target-password flag for JKS/PKCS12 files
+	cmd.Flags().StringP("target-password", "", "", "Password for target keystore (required for JKS/PKCS12). Use --target-password=<password> or --target-password for interactive prompt")
+	cmd.Flags().Lookup("target-password").NoOptDefVal = "PROMPT"
+
 	return cmd
 }
 
@@ -54,17 +64,29 @@ func runAddCommand(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid target path: %w", err)
 	}
 
+	// Get and validate password for target file type
+	targetPassword, err := getTargetPassword(cmd, target)
+	if err != nil {
+		return fmt.Errorf("target password error: %w", err)
+	}
+
+	// Get source password if needed
+	sourcePassword, err := getSourcePassword(cmd, source)
+	if err != nil {
+		return fmt.Errorf("source password error: %w", err)
+	}
+
 	// Determine if source is a domain or file path
 	if isAddDomainSource(source) {
-		return handleDomainAdd(source, target)
+		return handleDomainAdd(source, target, targetPassword)
 	}
 
 	// Handle file sources
-	return handleFileAdd(source, target)
+	return handleFileAdd(source, target, sourcePassword, targetPassword)
 }
 
 // handleDomainAdd adds root certificate from a remote server to target file
-func handleDomainAdd(domain, target string) error {
+func handleDomainAdd(domain, target, targetPassword string) error {
 	// Start loading indicator for TLS certificate retrieval
 	stopTLS := startLoadingIndicator(fmt.Sprintf("Retrieving certificate from %s", domain))
 
@@ -99,31 +121,28 @@ func handleDomainAdd(domain, target string) error {
 	// Get the root certificate (last in chain)
 	rootCert := chain[len(chain)-1]
 
-	// Add root certificate to target PEM file
-	pemHandler := store.NewPemHandler()
-	err = pemHandler.AddCertificate(target, rootCert, "")
+	// Add root certificate to target file using appropriate handler
+	err = addCertificateToTarget(target, rootCert, targetPassword)
 	if err != nil {
 		return fmt.Errorf("failed to add certificate to %s: %w", target, err)
 	}
 
-	// Print success message
-	fmt.Printf("Successfully added root certificate to %s\n", target)
-	fmt.Printf("Certificate Subject: %s\n", rootCert.Subject.String())
-	fmt.Printf("Serial Number: %s\n", rootCert.SerialNumber.String())
+	// Print success message with enhanced feedback
+	printEnhancedSuccessMessage(target, rootCert)
 
 	return nil
 }
 
 // handleFileAdd adds root certificate from a local file to target file
-func handleFileAdd(sourcePath, target string) error {
+func handleFileAdd(sourcePath, target, sourcePassword, targetPassword string) error {
 	// Validate that source file exists
 	if err := validateSourceFilePath(sourcePath); err != nil {
 		return fmt.Errorf("invalid source file: %w", err)
 	}
 
-	// Read certificate(s) from the source file
+	// Read certificate(s) from the source file using appropriate handler
 	stopRead := startLoadingIndicator(fmt.Sprintf("Reading certificate from %s", sourcePath))
-	certs, err := readCertificatesFromFile(sourcePath)
+	certs, err := readCertificatesFromSourceFile(sourcePath, sourcePassword)
 	stopRead()
 
 	if err != nil {
@@ -161,17 +180,14 @@ func handleFileAdd(sourcePath, target string) error {
 	// Get the root certificate (last in chain)
 	rootCert := chain[len(chain)-1]
 
-	// Add root certificate to target PEM file
-	pemHandler := store.NewPemHandler()
-	err = pemHandler.AddCertificate(target, rootCert, "")
+	// Add root certificate to target file using appropriate handler
+	err = addCertificateToTarget(target, rootCert, targetPassword)
 	if err != nil {
 		return fmt.Errorf("failed to add certificate to %s: %w", target, err)
 	}
 
-	// Print success message
-	fmt.Printf("Successfully added root certificate to %s\n", target)
-	fmt.Printf("Certificate Subject: %s\n", rootCert.Subject.String())
-	fmt.Printf("Serial Number: %s\n", rootCert.SerialNumber.String())
+	// Print success message with enhanced feedback
+	printEnhancedSuccessMessage(target, rootCert)
 
 	return nil
 }
@@ -373,4 +389,160 @@ func readCertificatesFromFile(sourcePath string) ([]*x509.Certificate, error) {
 	}
 
 	return certificates, nil
+}
+
+// getTargetPassword determines and validates the password for the target file
+func getTargetPassword(cmd *cobra.Command, target string) (string, error) {
+	// Determine target file type
+	targetType := getTargetFileType(target)
+	
+	// PEM files don't need passwords
+	if targetType == "pem" {
+		return "", nil
+	}
+
+	// JKS and PKCS12 files require passwords
+	passwordFlag := cmd.Flags().Lookup("target-password")
+	if passwordFlag == nil {
+		return "", fmt.Errorf("target-password flag not found")
+	}
+
+	// Check if flag was provided
+	if !passwordFlag.Changed {
+		return "", fmt.Errorf("password required for %s files. Use --target-password=<password> or --target-password to prompt interactively", targetType)
+	}
+
+	// Get password value
+	password, _ := cmd.Flags().GetString("target-password")
+	
+	// If password is empty string or "PROMPT", it means flag was provided without value - prompt interactively
+	if password == "" || password == "PROMPT" {
+		fmt.Printf("Enter password for target %s file: ", targetType)
+		passwordBytes, err := term.ReadPassword(int(syscall.Stdin))
+		if err != nil {
+			return "", fmt.Errorf("failed to read password: %w", err)
+		}
+		fmt.Println() // Add newline after password input
+		password = string(passwordBytes)
+	}
+
+	// Validate password is not empty after interactive input
+	if password == "" {
+		return "", fmt.Errorf("password cannot be empty for %s files", targetType)
+	}
+
+	return password, nil
+}
+
+// getTargetFileType determines the file type based on extension
+func getTargetFileType(target string) string {
+	ext := strings.ToLower(filepath.Ext(target))
+	switch ext {
+	case ".jks":
+		return "jks"
+	case ".p12", ".pfx":
+		return "pkcs12"
+	default:
+		return "pem"
+	}
+}
+
+// addCertificateToTarget adds a certificate to the target file using the appropriate handler
+func addCertificateToTarget(target string, cert *x509.Certificate, password string) error {
+	targetType := getTargetFileType(target)
+	
+	switch targetType {
+	case "pem":
+		pemHandler := store.NewPemHandler()
+		return pemHandler.AddCertificate(target, cert, "")
+	case "jks":
+		jksHandler := store.NewJksHandler()
+		return jksHandler.AddCertificate(target, cert, password)
+	case "pkcs12":
+		pkcs12Handler := store.NewPkcs12Handler()
+		return pkcs12Handler.AddCertificate(target, cert, password)
+	default:
+		return fmt.Errorf("unsupported target file type: %s", targetType)
+	}
+}
+
+// printEnhancedSuccessMessage prints formatted success message with enhanced information
+func printEnhancedSuccessMessage(target string, cert *x509.Certificate) {
+	targetType := getTargetFileType(target)
+	
+	fmt.Printf("Successfully added root certificate to %s\n", target)
+	fmt.Printf("Certificate Subject: %s\n", cert.Subject.String())
+	fmt.Printf("Serial Number: %s\n", cert.SerialNumber.String())
+	
+	// Include format-specific information
+	switch targetType {
+	case "jks":
+		fmt.Printf("Certificate stored in JKS keystore with auto-generated alias\n")
+	case "pkcs12":
+		fmt.Printf("Certificate stored in PKCS12 keystore with auto-generated alias\n")
+	case "pem":
+		fmt.Printf("Certificate appended to PEM file\n")
+	}
+}
+
+// getSourcePassword determines and validates the password for the source file
+func getSourcePassword(cmd *cobra.Command, source string) (string, error) {
+	// Determine source file type
+	sourceType := getTargetFileType(source) // Reuse the same function
+	
+	// PEM files don't need passwords
+	if sourceType == "pem" {
+		return "", nil
+	}
+
+	// JKS and PKCS12 files require passwords
+	passwordFlag := cmd.Flags().Lookup("password")
+	if passwordFlag == nil {
+		return "", fmt.Errorf("password flag not found")
+	}
+
+	// Check if flag was provided
+	if !passwordFlag.Changed {
+		return "", fmt.Errorf("password required for %s source files. Use --password=<password> or --password to prompt interactively", sourceType)
+	}
+
+	// Get password value
+	password, _ := cmd.Flags().GetString("password")
+	
+	// If password is empty string or "PROMPT", it means flag was provided without value - prompt interactively
+	if password == "" || password == "PROMPT" {
+		fmt.Printf("Enter password for source %s file: ", sourceType)
+		passwordBytes, err := term.ReadPassword(int(syscall.Stdin))
+		if err != nil {
+			return "", fmt.Errorf("failed to read password: %w", err)
+		}
+		fmt.Println() // Add newline after password input
+		password = string(passwordBytes)
+	}
+
+	// Validate password is not empty after interactive input
+	if password == "" {
+		return "", fmt.Errorf("password cannot be empty for %s files", sourceType)
+	}
+
+	return password, nil
+}
+
+// readCertificatesFromSourceFile reads certificates from any supported source file type
+func readCertificatesFromSourceFile(sourcePath, password string) ([]*x509.Certificate, error) {
+	sourceType := getTargetFileType(sourcePath) // Reuse the same function
+	
+	switch sourceType {
+	case "pem":
+		return readCertificatesFromFile(sourcePath) // Use existing PEM reader
+	case "jks":
+		jksHandler := store.NewJksHandler()
+		return jksHandler.ReadCertificates(sourcePath, password)
+	case "pkcs12":
+		pkcs12Handler := store.NewPkcs12Handler()
+		return pkcs12Handler.ReadCertificates(sourcePath, password)
+	default:
+		// Default to PEM for unknown extensions
+		return readCertificatesFromFile(sourcePath)
+	}
 }
