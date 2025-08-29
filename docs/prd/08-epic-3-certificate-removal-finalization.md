@@ -2,6 +2,11 @@
 
 **Goal:** This final epic completes the core functionality by implementing the `rm` (remove) command, which intelligently identifies a root certificate via a source and removes it from a target truststore. It also focuses on project finalization, including robust testing, comprehensive user documentation, and setting up an automated build and release process to deliver the cross-platform binaries.
 
+**Epic Dependencies:** This epic builds upon the foundation established in Epic 1 and Epic 2:
+- **From Epic 1**: CLI framework, truststore format handlers, and certificate parsing capabilities
+- **From Epic 2**: Certificate Chain Completion Service (Story 2.1), External Service Integration Infrastructure (Story 2.0), and HTTP Client Infrastructure (Story 1.5)
+- **Shared Components**: All truststore handlers (PEM, JKS, PKCS12), error handling patterns, and user interface consistency patterns
+
 ***
 
 #### **Story 3.1: Remove Root Certificate from Truststore via Source Identifier**
@@ -13,13 +18,14 @@
 **Acceptance Criteria:**
 
 1. The `rm` command accepts a source identifier (a remote server or a local certificate file) and a `--target` truststore file.
-2. The CLI uses the Certificate Chain Completion Service (Story 2.1) on the source identifier to find its corresponding root certificate.
-3. The CLI then searches the `--target` truststore for that specific root certificate.
-4. If the root certificate is found in the target truststore, it is removed.
-5. A clear success message is printed.
+2. The CLI uses the Certificate Chain Completion Service (Story 2.1) and External Service Integration Infrastructure (Story 2.0) to find the corresponding root certificate.
+3. The CLI searches the `--target` truststore using the appropriate truststore handlers from Epic 1.
+4. If the root certificate is found in the target truststore, it is removed using the same patterns established in Epic 2.
+5. A clear success message is printed using consistent messaging patterns.
 6. A helpful error is shown if the identified root certificate is not found in the target truststore.
-7. The command works for all supported truststore formats (PEM, JKS, PKCS12), using passwords where necessary.
+7. The command works for all supported truststore formats (PEM, JKS, PKCS12), using password handling patterns from Stories 1.4 and 2.4.
 8. A loading indicator is displayed during certificate chain completion, truststore searching, and certificate removal operations.
+9. All error handling follows the patterns established in Stories 1.5 and 2.0 for external service failures.
 
 ***
 
@@ -38,7 +44,7 @@
    * Installation instructions for all platforms (macOS, Linux, Windows)
    * Quick start guide with the most common use cases
    * Complete usage examples for every command (`list`, `add`, `rm`)
-   * All flags documented with examples (e.g., `--password`, `--target`, `--alias`, `--verbose`)
+   * All flags documented with examples (e.g., `--password`, `--target`, `--verbose`)
    * Loading indicator behavior and what it indicates during operations
    * Troubleshooting section for common issues
    * "Contributing" section outlining how developers can contribute
@@ -52,7 +58,7 @@
 
 3. Each subcommand provides comprehensive help via `truststore <command> --help`:
    * **`truststore list --help`**: Shows all supported source types (remote server, PEM, JKS, PKCS12), required and optional flags, and usage examples
-   * **`truststore add --help`**: Documents source and target options, password handling, alias specification, complete workflow examples, and loading indicator behavior
+   * **`truststore add --help`**: Documents source and target options, password handling, complete workflow examples, and loading indicator behavior
    * **`truststore rm --help`**: Explains source identification, target specification, removal confirmation process, and loading indicator behavior
 
 **Help Text Quality Standards:**

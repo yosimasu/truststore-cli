@@ -43,3 +43,17 @@ No major recommendations. The PRD is solid.
 #### Final Decision
 
 * **READY FOR ARCHITECT**: The PRD and epics are comprehensive, properly structured, and ready for architectural design.
+
+#### Change Log - PO Validation Fixes (August 2025)
+
+| Date | Version | Description | Author |
+| :--- | :--- | :--- | :--- |
+| 2025-08-29 | 1.1 | Added Story 1.5: HTTP Client Infrastructure Setup to address external API integration foundation | Sarah (PO) |
+| 2025-08-29 | 1.1 | Added Story 2.0: External Service Integration Infrastructure to address CT log resilience and offline development | Sarah (PO) |
+| 2025-08-29 | 1.1 | Rewrote Story 2.1 to clarify it as feature story using infrastructure from 2.0 | Sarah (PO) |
+| 2025-08-29 | 1.1 | Added explicit cross-epic dependencies in Epic 3 and updated Story 3.1 acceptance criteria | Sarah (PO) |
+
+**Fixes Applied:**
+- **External Service Integration Risk**: Resolved by adding Stories 1.5 and 2.0 with comprehensive offline development support
+- **Infrastructure vs Feature Confusion**: Resolved by repositioning Story 2.1 and adding clear infrastructure dependencies
+- **Cross-Epic Dependencies**: Made explicit in Epic 3 documentation and Story 3.1 acceptance criteria

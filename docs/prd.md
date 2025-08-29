@@ -132,15 +132,30 @@ The project will require both unit tests for individual functions and integratio
 
 #### **Story 1.4: List Certificates from JKS and PKCS12 files**
 *As a Java developer,*
-*I want to run `truststore list keystore.jks --password mysecret`,*
+*I want to run `truststore list keystore.jks --password=mysecret`,*
 *so that I can inspect the contents of my application's keystore without using `keytool`.*
 
 **Acceptance Criteria:**
-1.  The `list` command accepts a `--password` flag for protected truststores.
+1.  The `list` command accepts a `--password` flag for protected truststores. When used with `=value` (e.g., `--password=mysecret`), the password is provided directly. When used without a value (e.g., `--password`), the user is prompted to enter the password interactively.
 2.  The CLI can successfully read and parse certificates from a JKS file.
 3.  The CLI can successfully read and parse certificates from a PKCS12 file.
 4.  The output format is consistent with all other `list` commands.
 5.  Clear error messages are provided for incorrect passwords or corrupted files.
+
+---
+
+#### **Story 1.5: HTTP Client Infrastructure Setup**
+*As a developer,*
+*I want to establish HTTP client infrastructure and external API integration patterns,*
+*so that I have a reliable foundation for Certificate Transparency log integration.*
+
+**Acceptance Criteria:**
+1.  A reusable HTTP client package is created with configurable timeouts and retry logic.
+2.  Mock HTTP server testing infrastructure is established using `net/http/httptest`.
+3.  External API error handling patterns are defined and documented.
+4.  Integration test framework is set up to work both online and offline.
+5.  Common HTTP response structures and parsing utilities are implemented.
+6.  Network connectivity detection and graceful fallback mechanisms are established.
 
 ### Epic 2: Root Certificate Write Operations
 
@@ -148,18 +163,35 @@ The project will require both unit tests for individual functions and integratio
 
 ---
 
-#### **Story 2.1: Certificate Chain Completion Service**
+#### **Story 2.0: External Service Integration Infrastructure**
 *As a developer,*
-*I want to create an internal service that can take a certificate and build its complete chain by fetching missing issuers,*
-*so that the `add` and `rm` commands can operate on a full, validated chain.*
+*I want to establish robust external service integration infrastructure for Certificate Transparency logs,*
+*so that I have reliable, testable, and resilient foundation for certificate chain completion operations.*
 
 **Acceptance Criteria:**
-1.  A new internal function/service is created that takes a certificate as input.
-2.  If the certificate's issuer is not available, it queries a public Certificate Transparency log service (like `crt.sh`).
-3.  It recursively fetches issuer certificates until a self-signed root is found or no more issuers can be found.
-4.  The function returns a complete (or most complete possible) certificate chain.
-5.  The service gracefully handles network errors and cases where the issuer cannot be found in the CT log.
-6.  A loading indicator is displayed during network operations when querying Certificate Transparency logs.
+1.  Certificate Transparency log client service is created with proper error handling and resilience.
+2.  Cached response system is implemented for offline development and testing.
+3.  Graceful degradation mechanisms are established when CT logs are unavailable.
+4.  Rate limiting and API respect patterns are implemented for external service calls.
+5.  Mock CT log service is available for development and integration testing.
+6.  Network connectivity detection and fallback behaviors are defined.
+
+---
+
+#### **Story 2.1: Certificate Chain Completion Service**
+*As a user of the truststore CLI,*
+*I want the system to automatically complete certificate chains by finding missing issuer certificates,*
+*so that I can work with complete, validated certificate chains for add and remove operations.*
+
+**Acceptance Criteria:**
+1.  A certificate chain completion service is implemented using the CT log infrastructure from Story 2.0.
+2.  The service accepts a certificate as input and returns the most complete possible certificate chain.
+3.  Missing issuer certificates are automatically fetched from Certificate Transparency logs when available.
+4.  The service recursively builds the chain until a self-signed root is found or no more issuers can be found.
+5.  Network errors and CT log unavailability are handled gracefully with appropriate user messaging.
+6.  The service integrates with the caching and offline capabilities from Story 2.0.
+7.  A loading indicator is displayed during network operations when querying Certificate Transparency logs.
+8.  Clear user feedback is provided about chain completeness and any limitations encountered.
 
 ---
 
@@ -196,16 +228,16 @@ The project will require both unit tests for individual functions and integratio
 
 #### **Story 2.4: Add Root Certificate to JKS and PKCS12 Files**
 *As a Java developer,*
-*I want to run `truststore add ca.pem --target keystore.jks --target-password mysecret`,*
+*I want to run `truststore add ca.pem --target keystore.jks --target-password=mysecret`,*
 *so that I can import a new Certificate Authority into my application's keystore without complex commands.*
 
 **Acceptance Criteria:**
-1.  The `add` command supports a `--target-password` flag for the destination truststore.
+1.  The `add` command supports a `--target-password` flag for the destination truststore. When used with `=value` (e.g., `--target-password=mysecret`), the password is provided directly. When used without a value (e.g., `--target-password`), the user is prompted to enter the password interactively.
 2.  The CLI uses the Certificate Chain Completion Service (Story 2.1) to validate the source certificate.
 3.  The CLI can add the identified root certificate (from a remote or local source) to a JKS file.
 4.  The CLI can add the identified root certificate (from a remote or local source) to a PKCS12 file.
 5.  If the target JKS or PKCS12 file doesn't exist, it is created with the new root certificate.
-6.  The user can specify a certificate alias with a flag (e.g., `--alias my_new_cert`); if not provided, a default alias is generated.
+6.  A default alias is automatically generated for the added certificate.
 7.  A success message is printed, including the alias of the added certificate.
 8.  Handles incorrect passwords and file write errors gracefully.
 9.  A loading indicator is displayed during certificate chain completion, validation, and truststore write operations.
@@ -213,6 +245,11 @@ The project will require both unit tests for individual functions and integratio
 ### Epic 3: Certificate Removal & Finalization
 
 **Goal:** This final epic completes the core functionality by implementing the `rm` (remove) command, which intelligently identifies a root certificate via a source and removes it from a target truststore. It also focuses on project finalization, including robust testing, comprehensive user documentation, and setting up an automated build and release process to deliver the cross-platform binaries.
+
+**Epic Dependencies:** This epic builds upon the foundation established in Epic 1 and Epic 2:
+- **From Epic 1**: CLI framework, truststore format handlers, and certificate parsing capabilities
+- **From Epic 2**: Certificate Chain Completion Service (Story 2.1), External Service Integration Infrastructure (Story 2.0), and HTTP Client Infrastructure (Story 1.5)
+- **Shared Components**: All truststore handlers (PEM, JKS, PKCS12), error handling patterns, and user interface consistency patterns
 
 ---
 
@@ -223,13 +260,14 @@ The project will require both unit tests for individual functions and integratio
 
 **Acceptance Criteria:**
 1.  The `rm` command accepts a source identifier (a remote server or a local certificate file) and a `--target` truststore file.
-2.  The CLI uses the Certificate Chain Completion Service (Story 2.1) on the source identifier to find its corresponding root certificate.
-3.  The CLI then searches the `--target` truststore for that specific root certificate.
-4.  If the root certificate is found in the target truststore, it is removed.
-5.  A clear success message is printed.
+2.  The CLI uses the Certificate Chain Completion Service (Story 2.1) and External Service Integration Infrastructure (Story 2.0) to find the corresponding root certificate.
+3.  The CLI searches the `--target` truststore using the appropriate truststore handlers from Epic 1.
+4.  If the root certificate is found in the target truststore, it is removed using the same patterns established in Epic 2.
+5.  A clear success message is printed using consistent messaging patterns.
 6.  A helpful error is shown if the identified root certificate is not found in the target truststore.
-7.  The command works for all supported truststore formats (PEM, JKS, PKCS12), using passwords where necessary.
+7.  The command works for all supported truststore formats (PEM, JKS, PKCS12), using password handling patterns from Stories 1.4 and 2.4.
 8.  A loading indicator is displayed during certificate chain completion, truststore searching, and certificate removal operations.
+9.  All error handling follows the patterns established in Stories 1.5 and 2.0 for external service failures.
 
 ---
 
@@ -246,7 +284,7 @@ The project will require both unit tests for individual functions and integratio
     *   Installation instructions for all platforms (macOS, Linux, Windows)
     *   Quick start guide with the most common use cases
     *   Complete usage examples for every command (`list`, `add`, `rm`)
-    *   All flags documented with examples (e.g., `--password`, `--target`, `--alias`, `--verbose`)
+    *   All flags documented with examples (e.g., `--password`, `--target`, `--verbose`)
     *   Loading indicator behavior and what it indicates during operations
     *   Troubleshooting section for common issues
     *   "Contributing" section outlining how developers can contribute
@@ -260,7 +298,7 @@ The project will require both unit tests for individual functions and integratio
 
 3.  Each subcommand provides comprehensive help via `truststore <command> --help`:
     *   **`truststore list --help`**: Shows all supported source types (remote server, PEM, JKS, PKCS12), required and optional flags, and usage examples
-    *   **`truststore add --help`**: Documents source and target options, password handling, alias specification, complete workflow examples, and loading indicator behavior
+    *   **`truststore add --help`**: Documents source and target options, password handling, complete workflow examples, and loading indicator behavior
     *   **`truststore rm --help`**: Explains source identification, target specification, removal confirmation process, and loading indicator behavior
 
 **Help Text Quality Standards:**
@@ -329,6 +367,19 @@ No major recommendations. The PRD is solid.
 
 #### Final Decision
 *   **READY FOR ARCHITECT**: The PRD and epics are comprehensive, properly structured, and ready for architectural design.
+
+#### Change Log - PO Validation Fixes (August 2025)
+| Date | Version | Description | Author |
+| :--- | :--- | :--- | :--- |
+| 2025-08-29 | 1.1 | Added Story 1.5: HTTP Client Infrastructure Setup to address external API integration foundation | Sarah (PO) |
+| 2025-08-29 | 1.1 | Added Story 2.0: External Service Integration Infrastructure to address CT log resilience and offline development | Sarah (PO) |
+| 2025-08-29 | 1.1 | Rewrote Story 2.1 to clarify it as feature story using infrastructure from 2.0 | Sarah (PO) |
+| 2025-08-29 | 1.1 | Added explicit cross-epic dependencies in Epic 3 and updated Story 3.1 acceptance criteria | Sarah (PO) |
+
+**Fixes Applied:**
+- **External Service Integration Risk**: Resolved by adding Stories 1.5 and 2.0 with comprehensive offline development support
+- **Infrastructure vs Feature Confusion**: Resolved by repositioning Story 2.1 and adding clear infrastructure dependencies
+- **Cross-Epic Dependencies**: Made explicit in Epic 3 documentation and Story 3.1 acceptance criteria
 
 ### 8. Next Steps
 

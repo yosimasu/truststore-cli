@@ -4,20 +4,39 @@
 
 ***
 
-#### **Story 2.1: Certificate Chain Completion Service**
+#### **Story 2.0: External Service Integration Infrastructure**
 
 *As a developer,*
-*I want to create an internal service that can take a certificate and build its complete chain by fetching missing issuers,*
-*so that the `add` and `rm` commands can operate on a full, validated chain.*
+*I want to establish robust external service integration infrastructure for Certificate Transparency logs,*
+*so that I have reliable, testable, and resilient foundation for certificate chain completion operations.*
 
 **Acceptance Criteria:**
 
-1. A new internal function/service is created that takes a certificate as input.
-2. If the certificate's issuer is not available, it queries a public Certificate Transparency log service (like `crt.sh`).
-3. It recursively fetches issuer certificates until a self-signed root is found or no more issuers can be found.
-4. The function returns a complete (or most complete possible) certificate chain.
-5. The service gracefully handles network errors and cases where the issuer cannot be found in the CT log.
-6. A loading indicator is displayed during network operations when querying Certificate Transparency logs.
+1. Certificate Transparency log client service is created with proper error handling and resilience.
+2. Cached response system is implemented for offline development and testing.
+3. Graceful degradation mechanisms are established when CT logs are unavailable.
+4. Rate limiting and API respect patterns are implemented for external service calls.
+5. Mock CT log service is available for development and integration testing.
+6. Network connectivity detection and fallback behaviors are defined.
+
+***
+
+#### **Story 2.1: Certificate Chain Completion Service**
+
+*As a user of the truststore CLI,*
+*I want the system to automatically complete certificate chains by finding missing issuer certificates,*
+*so that I can work with complete, validated certificate chains for add and remove operations.*
+
+**Acceptance Criteria:**
+
+1. A certificate chain completion service is implemented using the CT log infrastructure from Story 2.0.
+2. The service accepts a certificate as input and returns the most complete possible certificate chain.
+3. Missing issuer certificates are automatically fetched from Certificate Transparency logs when available.
+4. The service recursively builds the chain until a self-signed root is found or no more issuers can be found.
+5. Network errors and CT log unavailability are handled gracefully with appropriate user messaging.
+6. The service integrates with the caching and offline capabilities from Story 2.0.
+7. A loading indicator is displayed during network operations when querying Certificate Transparency logs.
+8. Clear user feedback is provided about chain completeness and any limitations encountered.
 
 ***
 
@@ -59,17 +78,17 @@
 #### **Story 2.4: Add Root Certificate to JKS and PKCS12 Files**
 
 *As a Java developer,*
-*I want to run `truststore add ca.pem --target keystore.jks --target-password mysecret`,*
+*I want to run `truststore add ca.pem --target keystore.jks --target-password=mysecret`,*
 *so that I can import a new Certificate Authority into my application's keystore without complex commands.*
 
 **Acceptance Criteria:**
 
-1. The `add` command supports a `--target-password` flag for the destination truststore.
+1. The `add` command supports a `--target-password` flag for the destination truststore. When used with `=value` (e.g., `--target-password=mysecret`), the password is provided directly. When used without a value (e.g., `--target-password`), the user is prompted to enter the password interactively.
 2. The CLI uses the Certificate Chain Completion Service (Story 2.1) to validate the source certificate.
 3. The CLI can add the identified root certificate (from a remote or local source) to a JKS file.
 4. The CLI can add the identified root certificate (from a remote or local source) to a PKCS12 file.
 5. If the target JKS or PKCS12 file doesn't exist, it is created with the new root certificate.
-6. The user can specify a certificate alias with a flag (e.g., `--alias my_new_cert`); if not provided, a default alias is generated.
+6. A default alias is automatically generated for the added certificate.
 7. A success message is printed, including the alias of the added certificate.
 8. Handles incorrect passwords and file write errors gracefully.
 9. A loading indicator is displayed during certificate chain completion, validation, and truststore write operations.

@@ -52,13 +52,30 @@
 #### **Story 1.4: List Certificates from JKS and PKCS12 files**
 
 *As a Java developer,*
-*I want to run `truststore list keystore.jks --password mysecret`,*
+*I want to run `truststore list keystore.jks --password=mysecret`,*
 *so that I can inspect the contents of my application's keystore without using `keytool`.*
 
 **Acceptance Criteria:**
 
-1. The `list` command accepts a `--password` flag for protected truststores.
+1. The `list` command accepts a `--password` flag for protected truststores. When used with `=value` (e.g., `--password=mysecret`), the password is provided directly. When used without a value (e.g., `--password`), the user is prompted to enter the password interactively.
 2. The CLI can successfully read and parse certificates from a JKS file.
 3. The CLI can successfully read and parse certificates from a PKCS12 file.
 4. The output format is consistent with all other `list` commands.
 5. Clear error messages are provided for incorrect passwords or corrupted files.
+
+***
+
+#### **Story 1.5: HTTP Client Infrastructure Setup**
+
+*As a developer,*
+*I want to establish HTTP client infrastructure and external API integration patterns,*
+*so that I have a reliable foundation for Certificate Transparency log integration.*
+
+**Acceptance Criteria:**
+
+1. A reusable HTTP client package is created with configurable timeouts and retry logic.
+2. Mock HTTP server testing infrastructure is established using `net/http/httptest`.
+3. External API error handling patterns are defined and documented.
+4. Integration test framework is set up to work both online and offline.
+5. Common HTTP response structures and parsing utilities are implemented.
+6. Network connectivity detection and graceful fallback mechanisms are established.
