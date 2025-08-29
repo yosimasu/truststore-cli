@@ -19,6 +19,7 @@
 5. A clear success message is printed.
 6. A helpful error is shown if the identified root certificate is not found in the target truststore.
 7. The command works for all supported truststore formats (PEM, JKS, PKCS12), using passwords where necessary.
+8. A loading indicator is displayed during certificate chain completion, truststore searching, and certificate removal operations.
 
 ***
 
@@ -38,6 +39,7 @@
    * Quick start guide with the most common use cases
    * Complete usage examples for every command (`list`, `add`, `rm`)
    * All flags documented with examples (e.g., `--password`, `--target`, `--alias`, `--verbose`)
+   * Loading indicator behavior and what it indicates during operations
    * Troubleshooting section for common issues
    * "Contributing" section outlining how developers can contribute
 
@@ -50,8 +52,8 @@
 
 3. Each subcommand provides comprehensive help via `truststore <command> --help`:
    * **`truststore list --help`**: Shows all supported source types (remote server, PEM, JKS, PKCS12), required and optional flags, and usage examples
-   * **`truststore add --help`**: Documents source and target options, password handling, alias specification, and complete workflow examples
-   * **`truststore rm --help`**: Explains source identification, target specification, and removal confirmation process
+   * **`truststore add --help`**: Documents source and target options, password handling, alias specification, complete workflow examples, and loading indicator behavior
+   * **`truststore rm --help`**: Explains source identification, target specification, removal confirmation process, and loading indicator behavior
 
 **Help Text Quality Standards:**
 4.  All help text must be:

@@ -17,6 +17,7 @@
 3. It recursively fetches issuer certificates until a self-signed root is found or no more issuers can be found.
 4. The function returns a complete (or most complete possible) certificate chain.
 5. The service gracefully handles network errors and cases where the issuer cannot be found in the CT log.
+6. A loading indicator is displayed during network operations when querying Certificate Transparency logs.
 
 ***
 
@@ -51,6 +52,7 @@
 3. The CLI uses the Certificate Chain Completion Service (Story 2.1) to validate the certificate and its chain.
 4. The identified root certificate is appended to the target PEM file.
 5. A success message confirms the operation.
+6. A loading indicator is displayed during certificate chain completion and validation operations.
 
 ***
 
@@ -70,3 +72,4 @@
 6. The user can specify a certificate alias with a flag (e.g., `--alias my_new_cert`); if not provided, a default alias is generated.
 7. A success message is printed, including the alias of the added certificate.
 8. Handles incorrect passwords and file write errors gracefully.
+9. A loading indicator is displayed during certificate chain completion, validation, and truststore write operations.
