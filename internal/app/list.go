@@ -32,8 +32,9 @@ Examples:
   truststore list keystore.p12 --password       # prompts for password
   truststore list keystore.jks -p=secret
   truststore list keystore.p12 -p              # prompts for password`,
-		Args: cobra.ExactArgs(1),
-		RunE: runListCommand,
+		Args:         cobra.ExactArgs(1),
+		RunE:         runListCommand,
+		SilenceUsage: true, // Don't show usage on errors
 	}
 
 	// Add flags for password-protected keystores

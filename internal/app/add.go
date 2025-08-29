@@ -32,8 +32,9 @@ Examples:
   truststore add example.org --target trusted_certs.pem
   truststore add ca.pem --target trusted_certs.pem
   truststore add /path/to/certificate.crt --target trusted_certs.pem`,
-		Args: cobra.ExactArgs(1),
-		RunE: runAddCommand,
+		Args:         cobra.ExactArgs(1),
+		RunE:         runAddCommand,
+		SilenceUsage: true, // Don't show usage on errors
 	}
 
 	// Add target flag - required

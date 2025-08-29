@@ -8,11 +8,7 @@ import (
 	"time"
 )
 
-// HTTPClient provides a generic HTTP client interface for dependency injection and testing
-type HTTPClient interface {
-	Get(url string) (*http.Response, error)
-	GetWithContext(ctx context.Context, url string) (*http.Response, error)
-}
+// HTTP client interface moved to interface.go
 
 // Config holds HTTP client configuration
 type Config struct {

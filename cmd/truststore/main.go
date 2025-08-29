@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -43,7 +42,6 @@ var rootCmd = newRootCommand()
 func Execute() {
 	err := rootCmd.Execute()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 }

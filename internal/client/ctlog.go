@@ -11,12 +11,6 @@ import (
 	"time"
 )
 
-// CTLogClient provides access to Certificate Transparency logs via crt.sh API
-type CTLogClient interface {
-	SearchCertificatesByIssuer(issuerName string) ([]CTLogEntry, error)
-	DownloadCertificate(id int) (*x509.Certificate, error)
-}
-
 // CTLogEntry represents a certificate entry from crt.sh search results
 type CTLogEntry struct {
 	ID           int    `json:"id"`
