@@ -95,6 +95,7 @@ The following table lists the specific technologies and versions that will be us
 | **Linting** | `golangci-lint` | v1.59.1 | Code quality and style enforcement | The de-facto standard meta-linter for Go projects. Enforces idiomatic code and catches common errors. |
 | **Dev Tooling** | `asdf` | 0.18.0 | Tool version management | Ensures consistent development environments across the team for all languages and tools. |
 | **Dev Tooling** | `asdf-golang` | (managed by asdf) | `asdf` plugin for Go | Manages the project's Go version via the `.tool-versions` file, ensuring consistency. |
+| **Dev Tooling** | `java` (Temurin) | 17.0.16+8 | JKS test data generation | Provides `keytool` for generating JKS test files during development and testing. |
 | **CI/CD** | GitHub Actions | N/A | Automation of testing and releases | As per PRD: Native to GitHub, excellent integration for building, testing, and deploying binaries to GitHub Releases. |
 
 ### 4. Data Models

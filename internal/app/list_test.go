@@ -58,14 +58,14 @@ func TestListCommandExecution(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "list with password flag",
+			name:    "list with password flag (non-existent file)",
 			args:    []string{"keystore.jks", "--password", "secret"},
-			wantErr: false,
+			wantErr: true, // File doesn't exist
 		},
 		{
-			name:    "list with password shorthand",
+			name:    "list with password shorthand (non-existent file)",
 			args:    []string{"keystore.p12", "-p", "secret"},
-			wantErr: false,
+			wantErr: true, // File doesn't exist
 		},
 		{
 			name:    "list without arguments",
@@ -120,10 +120,10 @@ func TestRunListCommand(t *testing.T) {
 			wantErr:  false,
 		},
 		{
-			name:     "run with domain and password",
+			name:     "run with domain and password (non-existent file)",
 			args:     []string{"keystore.jks"},
 			password: "secret",
-			wantErr:  false,
+			wantErr:  true, // File doesn't exist
 		},
 	}
 
@@ -263,7 +263,7 @@ func TestHandleFileSource(t *testing.T) {
 	// Create test PEM file
 	tempDir := t.TempDir()
 	testPemFile := filepath.Join(tempDir, "test.pem")
-	
+
 	// Copy a valid test certificate
 	testCertContent := `-----BEGIN CERTIFICATE-----
 MIIDozCCAougAwIBAgIUfdhU6GQU6oD22HvwXjzQ03Xqh78wDQYJKoZIhvcNAQEL
@@ -287,7 +287,7 @@ B+N1jOlP2YAabbhOCsi+HFgniarAyVWaEOSLIQZATO4h0WaQFznlvE3O2JPtAXrW
 /DMiQajQYDidCplTPlqi7YsY1Bi2MA8iNcf5NehNgV7inuaTi1isIBxX5y8OQXEV
 iDAAHBIw3Qui4t7XMnqz+8Y7nr3PSQg=
 -----END CERTIFICATE-----`
-	
+
 	if err := os.WriteFile(testPemFile, []byte(testCertContent), 0644); err != nil {
 		t.Fatalf("Failed to create test PEM file: %v", err)
 	}
@@ -311,16 +311,16 @@ iDAAHBIw3Qui4t7XMnqz+8Y7nr3PSQg=
 			wantErr:  true, // File doesn't exist
 		},
 		{
-			name:     "JKS file placeholder",
+			name:     "JKS file (non-existent)",
 			source:   "keystore.jks",
 			password: "secret",
-			wantErr:  false,
+			wantErr:  true, // File doesn't exist
 		},
 		{
-			name:     "PKCS12 file placeholder",
+			name:     "PKCS12 file (non-existent)",
 			source:   "keystore.p12",
 			password: "secret",
-			wantErr:  false,
+			wantErr:  true, // File doesn't exist
 		},
 		{
 			name:     "file without extension defaults to PEM",
@@ -344,7 +344,7 @@ func TestHandlePemFile(t *testing.T) {
 	// Create test PEM file
 	tempDir := t.TempDir()
 	testPemFile := filepath.Join(tempDir, "test.pem")
-	
+
 	testCertContent := `-----BEGIN CERTIFICATE-----
 MIIDozCCAougAwIBAgIUfdhU6GQU6oD22HvwXjzQ03Xqh78wDQYJKoZIhvcNAQEL
 BQAwYTELMAkGA1UEBhMCVVMxCzAJBgNVBAgMAkNBMRYwFAYDVQQHDA1TYW4gRnJh
@@ -367,15 +367,15 @@ B+N1jOlP2YAabbhOCsi+HFgniarAyVWaEOSLIQZATO4h0WaQFznlvE3O2JPtAXrW
 /DMiQajQYDidCplTPlqi7YsY1Bi2MA8iNcf5NehNgV7inuaTi1isIBxX5y8OQXEV
 iDAAHBIw3Qui4t7XMnqz+8Y7nr3PSQg=
 -----END CERTIFICATE-----`
-	
+
 	if err := os.WriteFile(testPemFile, []byte(testCertContent), 0644); err != nil {
 		t.Fatalf("Failed to create test PEM file: %v", err)
 	}
 
 	tests := []struct {
-		name     string
-		filepath string
-		wantErr  bool
+		name        string
+		filepath    string
+		wantErr     bool
 		errContains string
 	}{
 		{
@@ -394,12 +394,12 @@ iDAAHBIw3Qui4t7XMnqz+8Y7nr3PSQg=
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := handlePemFile(tt.filepath)
-			
+
 			if (err != nil) != tt.wantErr {
 				t.Errorf("handlePemFile() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			
+
 			if tt.wantErr && err != nil && tt.errContains != "" {
 				if !strings.Contains(err.Error(), tt.errContains) {
 					t.Errorf("handlePemFile() error = %v, want containing %q", err, tt.errContains)
@@ -450,6 +450,77 @@ func TestHandleDomainSource_ErrorHandling(t *testing.T) {
 			if tt.wantErr && err != nil && tt.errContains != "" {
 				if !strings.Contains(err.Error(), tt.errContains) {
 					t.Errorf("handleDomainSource() error = %v, want containing %q", err, tt.errContains)
+				}
+			}
+		})
+	}
+}
+
+func TestPromptForPassword(t *testing.T) {
+	// This test verifies that the password prompt function exists and handles non-terminal properly
+	// We can't easily test the interactive prompt in automated tests
+	
+	// Test the error case when not running in a terminal
+	password, err := promptForPassword()
+	if err == nil {
+		t.Error("promptForPassword() should return error when not in terminal")
+	}
+	if password != "" {
+		t.Errorf("promptForPassword() should return empty password on error, got %q", password)
+	}
+	if !strings.Contains(err.Error(), "interactive terminal") {
+		t.Errorf("promptForPassword() error should mention interactive terminal, got %v", err)
+	}
+}
+
+func TestPasswordFlagPromptLogic(t *testing.T) {
+	// Test that the command correctly identifies when to prompt for password
+	tests := []struct {
+		name           string
+		args           []string
+		expectingError bool
+		errorContains  string
+	}{
+		{
+			name:           "password flag without value should trigger prompt logic",
+			args:           []string{"../store/testdata/test.jks", "--password"},
+			expectingError: true,
+			errorContains:  "interactive terminal", // Should fail because we're not in terminal
+		},
+		{
+			name:           "password flag with value should not trigger prompt",
+			args:           []string{"../store/testdata/test.jks", "--password=testpass"},
+			expectingError: false,
+		},
+		{
+			name:           "password short flag with value should not trigger prompt",
+			args:           []string{"../store/testdata/test.jks", "-p=testpass"},
+			expectingError: false,
+		},
+		{
+			name:           "no password flag should not trigger prompt",
+			args:           []string{"../store/testdata/test.jks"},
+			expectingError: true,
+			errorContains:  "incorrect password", // Should fail because JKS is password protected
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd := NewListCommand()
+			cmd.SetArgs(tt.args)
+
+			err := cmd.Execute()
+
+			if tt.expectingError && err == nil {
+				t.Error("Expected error but got none")
+			} else if !tt.expectingError && err != nil {
+				t.Errorf("Unexpected error: %v", err)
+			}
+
+			if tt.expectingError && err != nil && tt.errorContains != "" {
+				if !strings.Contains(err.Error(), tt.errorContains) {
+					t.Errorf("Error should contain %q, got %v", tt.errorContains, err)
 				}
 			}
 		})

@@ -25,7 +25,7 @@ func (h *PemHandler) ReadCertificates(filepath string, password string) ([]*x509
 
 	var certificates []*x509.Certificate
 	var parseErrors []string
-	
+
 	// Parse all PEM blocks in the file
 	for {
 		var block *pem.Block

@@ -72,7 +72,7 @@ func TestPemHandler_ReadCertificates(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			filepath := filepath.Join("testdata", tt.filename)
-			
+
 			certificates, err := handler.ReadCertificates(filepath, tt.password)
 
 			if (err != nil) != tt.wantErr {
@@ -114,28 +114,28 @@ func TestPemHandler_ReadCertificates_FilePermissions(t *testing.T) {
 	// Create a temporary file with restricted permissions
 	tempDir := t.TempDir()
 	restrictedFile := filepath.Join(tempDir, "restricted.pem")
-	
+
 	// Create the file first
 	if err := os.WriteFile(restrictedFile, []byte("test content"), 0644); err != nil {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
-	
+
 	// Make it unreadable
 	if err := os.Chmod(restrictedFile, 0000); err != nil {
 		t.Fatalf("Failed to change file permissions: %v", err)
 	}
-	
+
 	// Restore permissions for cleanup
 	defer func() {
 		os.Chmod(restrictedFile, 0644)
 	}()
 
 	_, err := handler.ReadCertificates(restrictedFile, "")
-	
+
 	if err == nil {
 		t.Error("ReadCertificates() should fail with permission denied error")
 	}
-	
+
 	if !strings.Contains(err.Error(), "failed to read PEM file") {
 		t.Errorf("ReadCertificates() error = %v, want containing 'failed to read PEM file'", err)
 	}
@@ -147,17 +147,17 @@ func TestPemHandler_ReadCertificates_EmptyFile(t *testing.T) {
 	// Create a temporary empty file
 	tempDir := t.TempDir()
 	emptyFile := filepath.Join(tempDir, "empty.pem")
-	
+
 	if err := os.WriteFile(emptyFile, []byte(""), 0644); err != nil {
 		t.Fatalf("Failed to create empty test file: %v", err)
 	}
 
 	_, err := handler.ReadCertificates(emptyFile, "")
-	
+
 	if err == nil {
 		t.Error("ReadCertificates() should fail with empty file")
 	}
-	
+
 	if !strings.Contains(err.Error(), "no valid certificates found") {
 		t.Errorf("ReadCertificates() error = %v, want containing 'no valid certificates found'", err)
 	}
@@ -165,13 +165,13 @@ func TestPemHandler_ReadCertificates_EmptyFile(t *testing.T) {
 
 func TestPemHandler_AddCertificate(t *testing.T) {
 	handler := NewPemHandler()
-	
+
 	err := handler.AddCertificate("test.pem", nil, "")
-	
+
 	if err == nil {
 		t.Error("AddCertificate() should return error for unimplemented method")
 	}
-	
+
 	if !strings.Contains(err.Error(), "AddCertificate not implemented") {
 		t.Errorf("AddCertificate() error = %v, want containing 'AddCertificate not implemented'", err)
 	}
@@ -179,13 +179,13 @@ func TestPemHandler_AddCertificate(t *testing.T) {
 
 func TestPemHandler_RemoveCertificate(t *testing.T) {
 	handler := NewPemHandler()
-	
+
 	err := handler.RemoveCertificate("test.pem", nil, "")
-	
+
 	if err == nil {
 		t.Error("RemoveCertificate() should return error for unimplemented method")
 	}
-	
+
 	if !strings.Contains(err.Error(), "RemoveCertificate not implemented") {
 		t.Errorf("RemoveCertificate() error = %v, want containing 'RemoveCertificate not implemented'", err)
 	}
