@@ -3,6 +3,7 @@ package app
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -22,14 +23,15 @@ func NewAddCommand() *cobra.Command {
 		Short: "Add root certificate from a source to a truststore file",
 		Long: `Add root certificates from various sources to truststore files:
   - Remote servers (e.g., example.org, example.org:443) 
-  - Local certificate files (future stories)
+  - Local certificate files (e.g., ca.pem, cert.crt)
 
 The command identifies the root certificate in the chain and adds it to the target file.
 If the target file doesn't exist, it will be created.
 
 Examples:
   truststore add example.org --target trusted_certs.pem
-  truststore add example.org:443 --target trusted_certs.pem`,
+  truststore add ca.pem --target trusted_certs.pem
+  truststore add /path/to/certificate.crt --target trusted_certs.pem`,
 		Args: cobra.ExactArgs(1),
 		RunE: runAddCommand,
 	}
@@ -56,8 +58,8 @@ func runAddCommand(cmd *cobra.Command, args []string) error {
 		return handleDomainAdd(source, target)
 	}
 
-	// Handle file sources (future stories)
-	return fmt.Errorf("file sources not yet supported - will be added in future stories")
+	// Handle file sources
+	return handleFileAdd(source, target)
 }
 
 // handleDomainAdd adds root certificate from a remote server to target file
@@ -73,6 +75,68 @@ func handleDomainAdd(domain, target string) error {
 	}
 
 	fmt.Printf("✓ Certificate retrieved from %s\n", domain)
+
+	// Start loading indicator for certificate chain completion
+	stopChain := startLoadingIndicator("Completing certificate chain via CT logs")
+
+	ctLogClient := client.NewCTLogClient()
+	chainService := service.NewChainService(ctLogClient)
+
+	chain, err := chainService.CompleteCertificateChain(cert)
+	stopChain()
+
+	if err != nil {
+		return fmt.Errorf("failed to complete certificate chain: %w", err)
+	}
+
+	fmt.Printf("✓ Certificate chain completed (%d certificates found)\n", len(chain))
+
+	if len(chain) == 0 {
+		return fmt.Errorf("no certificates found in chain")
+	}
+
+	// Get the root certificate (last in chain)
+	rootCert := chain[len(chain)-1]
+
+	// Add root certificate to target PEM file
+	pemHandler := store.NewPemHandler()
+	err = pemHandler.AddCertificate(target, rootCert, "")
+	if err != nil {
+		return fmt.Errorf("failed to add certificate to %s: %w", target, err)
+	}
+
+	// Print success message
+	fmt.Printf("Successfully added root certificate to %s\n", target)
+	fmt.Printf("Certificate Subject: %s\n", rootCert.Subject.String())
+	fmt.Printf("Serial Number: %s\n", rootCert.SerialNumber.String())
+
+	return nil
+}
+
+// handleFileAdd adds root certificate from a local file to target file
+func handleFileAdd(sourcePath, target string) error {
+	// Validate that source file exists
+	if err := validateSourceFilePath(sourcePath); err != nil {
+		return fmt.Errorf("invalid source file: %w", err)
+	}
+
+	// Read certificate(s) from the source file
+	stopRead := startLoadingIndicator(fmt.Sprintf("Reading certificate from %s", sourcePath))
+	certs, err := readCertificatesFromFile(sourcePath)
+	stopRead()
+
+	if err != nil {
+		return fmt.Errorf("failed to read certificates from %s: %w", sourcePath, err)
+	}
+
+	if len(certs) == 0 {
+		return fmt.Errorf("no valid certificates found in %s", sourcePath)
+	}
+
+	fmt.Printf("✓ Read %d certificate(s) from %s\n", len(certs), sourcePath)
+
+	// Use the first certificate for chain completion
+	cert := certs[0]
 
 	// Start loading indicator for certificate chain completion
 	stopChain := startLoadingIndicator("Completing certificate chain via CT logs")
@@ -239,4 +303,73 @@ func startLoadingIndicator(message string) func() {
 		// Small delay to ensure the goroutine clears the line
 		time.Sleep(10 * time.Millisecond)
 	}
+}
+
+// validateSourceFilePath validates that the source file exists and is readable
+func validateSourceFilePath(sourcePath string) error {
+	if sourcePath == "" {
+		return fmt.Errorf("source path cannot be empty")
+	}
+
+	// Check if file exists
+	info, err := os.Stat(sourcePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("file %s does not exist", sourcePath)
+		}
+		return fmt.Errorf("cannot access file %s: %w", sourcePath, err)
+	}
+
+	// Check if it's a regular file
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("%s is not a regular file", sourcePath)
+	}
+
+	// Check if file is readable
+	file, err := os.Open(sourcePath)
+	if err != nil {
+		return fmt.Errorf("cannot read file %s: %w", sourcePath, err)
+	}
+	file.Close()
+
+	return nil
+}
+
+// readCertificatesFromFile reads and parses certificates from a PEM file
+func readCertificatesFromFile(sourcePath string) ([]*x509.Certificate, error) {
+	// Read the file content
+	data, err := os.ReadFile(sourcePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read file: %w", err)
+	}
+
+	var certificates []*x509.Certificate
+
+	// Parse all PEM blocks in the file
+	rest := data
+	for {
+		block, remaining := pem.Decode(rest)
+		if block == nil {
+			break // No more PEM blocks
+		}
+
+		// Only process CERTIFICATE blocks
+		if block.Type == "CERTIFICATE" {
+			cert, err := x509.ParseCertificate(block.Bytes)
+			if err != nil {
+				// Log warning but continue processing other certificates
+				fmt.Printf("Warning: Failed to parse certificate block: %v\n", err)
+			} else {
+				certificates = append(certificates, cert)
+			}
+		}
+
+		rest = remaining
+	}
+
+	if len(certificates) == 0 {
+		return nil, fmt.Errorf("no valid certificate blocks found in file")
+	}
+
+	return certificates, nil
 }

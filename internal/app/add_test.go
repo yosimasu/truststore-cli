@@ -1,6 +1,12 @@
 package app
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
+	"math/big"
 	"os"
 	"path/filepath"
 	"strings"
@@ -173,7 +179,7 @@ func TestIsDomainSourceInAddContext(t *testing.T) {
 	}
 }
 
-func TestRunAddCommandFileSourceNotImplemented(t *testing.T) {
+func TestValidateSourceFilePath(t *testing.T) {
 	// Create temporary directory and file for testing
 	tempDir, err := os.MkdirTemp("", "truststore-test-*")
 	if err != nil {
@@ -181,24 +187,46 @@ func TestRunAddCommandFileSourceNotImplemented(t *testing.T) {
 	}
 	defer os.RemoveAll(tempDir)
 
-	sourceFile := filepath.Join(tempDir, "source.pem")
-	targetFile := filepath.Join(tempDir, "target.pem")
-
-	// Create source file
-	err = os.WriteFile(sourceFile, []byte("test"), 0644)
+	validFile := filepath.Join(tempDir, "valid.pem")
+	err = os.WriteFile(validFile, []byte("test content"), 0644)
 	if err != nil {
-		t.Fatalf("Failed to create source file: %v", err)
+		t.Fatalf("Failed to create valid test file: %v", err)
 	}
 
-	cmd := NewAddCommand()
-	cmd.SetArgs([]string{sourceFile, "--target", targetFile})
-
-	err = cmd.Execute()
-	if err == nil {
-		t.Error("Expected error for file sources not yet implemented")
+	tests := []struct {
+		name      string
+		path      string
+		wantError bool
+	}{
+		{
+			name:      "empty path",
+			path:      "",
+			wantError: true,
+		},
+		{
+			name:      "nonexistent file",
+			path:      "/nonexistent/file.pem",
+			wantError: true,
+		},
+		{
+			name:      "valid file",
+			path:      validFile,
+			wantError: false,
+		},
+		{
+			name:      "directory instead of file",
+			path:      tempDir,
+			wantError: true,
+		},
 	}
-	if !strings.Contains(err.Error(), "file sources not yet supported") {
-		t.Errorf("Expected file sources not supported error, got: %v", err)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateSourceFilePath(tt.path)
+			if (err != nil) != tt.wantError {
+				t.Errorf("validateSourceFilePath() error = %v, wantError %v", err, tt.wantError)
+			}
+		})
 	}
 }
 
@@ -275,4 +303,136 @@ func TestStartLoadingIndicatorImmedateStop(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	// Test passes if no deadlocks occur
+}
+
+func TestReadCertificatesFromFile(t *testing.T) {
+	// Create temporary directory for testing
+	tempDir, err := os.MkdirTemp("", "truststore-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Generate test certificate for testing
+	cert, err := generateTestCertificate()
+	if err != nil {
+		t.Fatalf("Failed to generate test certificate: %v", err)
+	}
+
+	// Test valid PEM file
+	validPemFile := filepath.Join(tempDir, "valid.pem")
+	certPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: cert.Raw,
+	})
+	err = os.WriteFile(validPemFile, certPEM, 0644)
+	if err != nil {
+		t.Fatalf("Failed to create valid PEM file: %v", err)
+	}
+
+	certs, err := readCertificatesFromFile(validPemFile)
+	if err != nil {
+		t.Errorf("readCertificatesFromFile() with valid file failed: %v", err)
+	}
+	if len(certs) != 1 {
+		t.Errorf("Expected 1 certificate, got %d", len(certs))
+	}
+
+	// Test empty file
+	emptyFile := filepath.Join(tempDir, "empty.pem")
+	err = os.WriteFile(emptyFile, []byte(""), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create empty file: %v", err)
+	}
+
+	_, err = readCertificatesFromFile(emptyFile)
+	if err == nil {
+		t.Error("Expected error with empty file")
+	}
+
+	// Test invalid PEM file
+	invalidFile := filepath.Join(tempDir, "invalid.pem")
+	err = os.WriteFile(invalidFile, []byte("invalid certificate data"), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create invalid file: %v", err)
+	}
+
+	_, err = readCertificatesFromFile(invalidFile)
+	if err == nil {
+		t.Error("Expected error with invalid PEM file")
+	}
+
+	// Test file with multiple certificates
+	multiCertFile := filepath.Join(tempDir, "multi.pem")
+	cert2, err := generateTestCertificate()
+	if err != nil {
+		t.Fatalf("Failed to generate second test certificate: %v", err)
+	}
+
+	cert2PEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: cert2.Raw,
+	})
+
+	multiPEM := append(certPEM, cert2PEM...)
+	err = os.WriteFile(multiCertFile, multiPEM, 0644)
+	if err != nil {
+		t.Fatalf("Failed to create multi-cert file: %v", err)
+	}
+
+	certs, err = readCertificatesFromFile(multiCertFile)
+	if err != nil {
+		t.Errorf("readCertificatesFromFile() with multi-cert file failed: %v", err)
+	}
+	if len(certs) != 2 {
+		t.Errorf("Expected 2 certificates, got %d", len(certs))
+	}
+}
+
+func TestReadCertificatesFromFileNonExistent(t *testing.T) {
+	_, err := readCertificatesFromFile("/nonexistent/file.pem")
+	if err == nil {
+		t.Error("Expected error with non-existent file")
+	}
+}
+
+// generateTestCertificate creates a test certificate for testing purposes
+func generateTestCertificate() (*x509.Certificate, error) {
+	// Generate private key
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return nil, err
+	}
+
+	// Certificate template
+	template := x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject: pkix.Name{
+			Organization:  []string{"Test Org"},
+			Country:       []string{"US"},
+			Province:      []string{""},
+			Locality:      []string{"Test City"},
+			StreetAddress: []string{""},
+			PostalCode:    []string{""},
+		},
+		NotBefore:    time.Now(),
+		NotAfter:     time.Now().Add(365 * 24 * time.Hour),
+		KeyUsage:     x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		IPAddresses:  nil,
+	}
+
+	// Create certificate
+	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, &privateKey.PublicKey, privateKey)
+	if err != nil {
+		return nil, err
+	}
+
+	// Parse certificate
+	cert, err := x509.ParseCertificate(certDER)
+	if err != nil {
+		return nil, err
+	}
+
+	return cert, nil
 }
