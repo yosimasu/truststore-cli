@@ -94,18 +94,53 @@ func TestJksHandler_ReadCertificates_InvalidFile(t *testing.T) {
 
 // Old test removed - AddCertificate is now implemented
 
-func TestJksHandler_RemoveCertificate_NotImplemented(t *testing.T) {
+func TestJksHandler_RemoveCertificate(t *testing.T) {
 	handler := NewJksHandler()
+	tempDir := t.TempDir()
+	testFile := filepath.Join(tempDir, "test.jks")
+	password := "testpassword"
 
-	err := handler.RemoveCertificate("test.jks", nil, "password")
-
-	if err == nil {
-		t.Fatal("Expected not implemented error, got none")
+	// Test with nil certificate
+	err := handler.RemoveCertificate(testFile, nil, password)
+	if err == nil || !strings.Contains(err.Error(), "certificate cannot be nil") {
+		t.Errorf("RemoveCertificate() should return error for nil certificate, got: %v", err)
 	}
 
-	errStr := err.Error()
-	if !strings.Contains(errStr, "not implemented") {
-		t.Errorf("Expected 'not implemented' in error message, got: %s", errStr)
+	// Test with empty password
+	cert := createTestCertificate(t)
+	err = handler.RemoveCertificate(testFile, cert, "")
+	if err == nil || !strings.Contains(err.Error(), "password required") {
+		t.Errorf("RemoveCertificate() should return error for empty password, got: %v", err)
+	}
+
+	// Add a certificate first
+	err = handler.AddCertificate(testFile, cert, password)
+	if err != nil {
+		t.Fatalf("Failed to add certificate: %v", err)
+	}
+
+	// Test removing the certificate
+	err = handler.RemoveCertificate(testFile, cert, password)
+	if err != nil {
+		t.Errorf("RemoveCertificate() failed: %v", err)
+	}
+
+	// Verify certificate was removed by reading the file
+	certs, err := handler.ReadCertificates(testFile, password)
+	if err != nil {
+		// It's okay if there are no certificates found after removal
+		if !strings.Contains(err.Error(), "no certificates found") {
+			t.Fatalf("Failed to read certificates: %v", err)
+		}
+	} else if len(certs) != 0 {
+		t.Errorf("Expected 0 certificates after removal, got %d", len(certs))
+	}
+
+	// Test removing from non-existent file
+	nonExistentFile := filepath.Join(tempDir, "nonexistent.jks")
+	err = handler.RemoveCertificate(nonExistentFile, cert, password)
+	if err == nil {
+		t.Error("RemoveCertificate() should return error for non-existent file")
 	}
 }
 

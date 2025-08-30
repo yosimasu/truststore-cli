@@ -137,9 +137,99 @@ func (h *Pkcs12Handler) AddCertificate(filepath string, cert *x509.Certificate, 
 	return nil
 }
 
-// RemoveCertificate removes a certificate from the PKCS12 file (placeholder for future stories)
+// RemoveCertificate removes a certificate from the PKCS12 file
 func (h *Pkcs12Handler) RemoveCertificate(filepath string, cert *x509.Certificate, password string) error {
-	return fmt.Errorf("RemoveCertificate not implemented for PKCS12 files - will be added in future stories")
+	if password == "" {
+		return fmt.Errorf("password required for PKCS12 file operations")
+	}
+
+	if cert == nil {
+		return fmt.Errorf("certificate cannot be nil")
+	}
+
+	// Read and decode existing PKCS12 data
+	pkcs12Data, err := os.ReadFile(filepath)
+	if err != nil {
+		return fmt.Errorf("failed to read PKCS12 file %s: %w", filepath, err)
+	}
+
+	// Decode the PKCS12 data
+	privateKey, certificate, caCerts, err := pkcs12.DecodeChain(pkcs12Data, password)
+	if err != nil {
+		if isPkcs12PasswordError(err) {
+			return fmt.Errorf("incorrect password for PKCS12 file %s: provide the correct password", filepath)
+		}
+		return fmt.Errorf("failed to decode PKCS12 file %s: %w", filepath, err)
+	}
+
+	// Collect all existing certificates
+	var existingCerts []*x509.Certificate
+	if certificate != nil {
+		existingCerts = append(existingCerts, certificate)
+	}
+	if caCerts != nil {
+		existingCerts = append(existingCerts, caCerts...)
+	}
+
+	// Find and remove the matching certificate
+	var remainingCerts []*x509.Certificate
+	found := false
+
+	for _, existing := range existingCerts {
+		if cert.Equal(existing) {
+			found = true
+			// Skip this certificate (don't add to remaining)
+		} else {
+			remainingCerts = append(remainingCerts, existing)
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("certificate not found in PKCS12 file %s", filepath)
+	}
+
+	// If no certificates remain, remove the file
+	if len(remainingCerts) == 0 {
+		err = os.Remove(filepath)
+		if err != nil {
+			return fmt.Errorf("failed to remove empty PKCS12 file %s: %w", filepath, err)
+		}
+		return nil
+	}
+
+	// Recreate PKCS12 with remaining certificates
+	var mainCert *x509.Certificate
+	var newCaCerts []*x509.Certificate
+
+	if len(remainingCerts) > 0 {
+		// Use the first certificate as main, others as CA certs
+		mainCert = remainingCerts[0]
+		if len(remainingCerts) > 1 {
+			newCaCerts = remainingCerts[1:]
+		}
+	}
+
+	// Use the original private key if available, otherwise generate dummy key
+	if privateKey == nil {
+		privateKey, err = rsa.GenerateKey(rand.Reader, 2048)
+		if err != nil {
+			return fmt.Errorf("failed to generate dummy private key: %w", err)
+		}
+	}
+
+	// Create new PKCS12 data
+	newPkcs12Data, err := pkcs12.Legacy.Encode(privateKey, mainCert, newCaCerts, password)
+	if err != nil {
+		return fmt.Errorf("failed to encode PKCS12 data: %w", err)
+	}
+
+	// Write to file
+	err = os.WriteFile(filepath, newPkcs12Data, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write PKCS12 file %s: %w", filepath, err)
+	}
+
+	return nil
 }
 
 // isPkcs12PasswordError checks if the error is related to incorrect password

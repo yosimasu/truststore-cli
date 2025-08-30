@@ -121,7 +121,65 @@ func (h *PemHandler) certificateExists(filepath string, cert *x509.Certificate) 
 	return false, nil
 }
 
-// RemoveCertificate removes a certificate from the PEM file (placeholder for future stories)
+// RemoveCertificate removes a certificate from the PEM file
 func (h *PemHandler) RemoveCertificate(filepath string, cert *x509.Certificate, password string) error {
-	return fmt.Errorf("RemoveCertificate not implemented for PEM files - will be added in future stories")
+	if cert == nil {
+		return fmt.Errorf("certificate cannot be nil")
+	}
+
+	// Read existing certificates from file
+	existingCerts, err := h.ReadCertificates(filepath, "")
+	if err != nil {
+		return fmt.Errorf("failed to read existing certificates: %w", err)
+	}
+
+	// Find and remove the matching certificate
+	var remainingCerts []*x509.Certificate
+	found := false
+	
+	for _, existing := range existingCerts {
+		if cert.Equal(existing) {
+			found = true
+			// Skip this certificate (don't add to remaining)
+		} else {
+			remainingCerts = append(remainingCerts, existing)
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("certificate not found in %s", filepath)
+	}
+
+	// Write remaining certificates back to file
+	return h.writeCertificatesToFile(filepath, remainingCerts)
+}
+
+// writeCertificatesToFile writes a slice of certificates to a PEM file, replacing existing content
+func (h *PemHandler) writeCertificatesToFile(filepath string, certs []*x509.Certificate) error {
+	// Create or truncate the file
+	file, err := os.OpenFile(filepath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to open file %s: %w", filepath, err)
+	}
+	defer file.Close()
+
+	// Write each certificate as a PEM block
+	for _, cert := range certs {
+		pemBlock := &pem.Block{
+			Type:  "CERTIFICATE",
+			Bytes: cert.Raw,
+		}
+
+		pemData := pem.EncodeToMemory(pemBlock)
+		if pemData == nil {
+			return fmt.Errorf("failed to encode certificate as PEM")
+		}
+
+		_, err = file.Write(pemData)
+		if err != nil {
+			return fmt.Errorf("failed to write certificate to file %s: %w", filepath, err)
+		}
+	}
+
+	return nil
 }

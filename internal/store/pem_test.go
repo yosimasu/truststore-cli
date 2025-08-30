@@ -385,15 +385,67 @@ func createTestCertificate(t *testing.T) *x509.Certificate {
 
 func TestPemHandler_RemoveCertificate(t *testing.T) {
 	handler := NewPemHandler()
+	tempDir := t.TempDir()
+	testFile := filepath.Join(tempDir, "test.pem")
 
-	err := handler.RemoveCertificate("test.pem", nil, "")
-
-	if err == nil {
-		t.Error("RemoveCertificate() should return error for unimplemented method")
+	// Test with nil certificate
+	err := handler.RemoveCertificate(testFile, nil, "")
+	if err == nil || !strings.Contains(err.Error(), "certificate cannot be nil") {
+		t.Errorf("RemoveCertificate() should return error for nil certificate, got: %v", err)
 	}
 
-	if !strings.Contains(err.Error(), "RemoveCertificate not implemented") {
-		t.Errorf("RemoveCertificate() error = %v, want containing 'RemoveCertificate not implemented'", err)
+	// Create test certificates
+	cert1 := createTestCertificate(t)
+	cert2 := createTestCertificate(t)
+	cert3 := createTestCertificate(t)
+
+	// Add certificates to the file
+	err = handler.AddCertificate(testFile, cert1, "")
+	if err != nil {
+		t.Fatalf("Failed to add cert1: %v", err)
+	}
+	err = handler.AddCertificate(testFile, cert2, "")
+	if err != nil {
+		t.Fatalf("Failed to add cert2: %v", err)
+	}
+	err = handler.AddCertificate(testFile, cert3, "")
+	if err != nil {
+		t.Fatalf("Failed to add cert3: %v", err)
+	}
+
+	// Test removing a certificate that exists
+	err = handler.RemoveCertificate(testFile, cert2, "")
+	if err != nil {
+		t.Errorf("RemoveCertificate() failed: %v", err)
+	}
+
+	// Verify certificate was removed
+	certs, err := handler.ReadCertificates(testFile, "")
+	if err != nil {
+		t.Fatalf("Failed to read certificates: %v", err)
+	}
+	if len(certs) != 2 {
+		t.Errorf("Expected 2 certificates after removal, got %d", len(certs))
+	}
+
+	// Verify cert2 is not in the remaining certificates
+	for _, cert := range certs {
+		if cert.Equal(cert2) {
+			t.Error("Certificate should have been removed but was found")
+		}
+	}
+
+	// Test removing a certificate that doesn't exist
+	err = handler.RemoveCertificate(testFile, cert2, "")
+	if err == nil || !strings.Contains(err.Error(), "certificate not found") {
+		t.Errorf("RemoveCertificate() should return error for non-existent certificate, got: %v", err)
+	}
+
+	// Test removing from non-existent file
+	nonExistentFile := filepath.Join(tempDir, "nonexistent.pem")
+	err = handler.RemoveCertificate(nonExistentFile, cert1, "")
+	if err == nil {
+		t.Error("RemoveCertificate() should return error for non-existent file")
 	}
 }
 

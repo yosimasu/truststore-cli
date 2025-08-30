@@ -22,14 +22,36 @@ func newRootCommand() *cobra.Command {
 		Long: `truststore is a cross-platform CLI tool for managing digital certificates 
 and truststores across multiple formats (PEM, JKS, PKCS12).
 
-It provides unified operations for listing, adding, and removing certificates 
-from various sources including remote servers and local files.`,
+FEATURES:
+• List certificates from remote servers and local truststore files
+• Add root certificates from various sources to truststore files  
+• Remove certificates by identifying them through their source
+• Support for PEM, JKS, and PKCS12 formats
+• Interactive password prompts for protected keystores
+• Cross-platform support (macOS, Linux, Windows)
+
+COMMON WORKFLOWS:
+  # List certificates from a remote server
+  truststore list example.org
+
+  # Add root certificate from server to PEM file  
+  truststore add example.org --target trusted_certs.pem
+
+  # Remove certificate by identifying via server
+  truststore rm example.org --target trusted_certs.pem
+
+  # Work with password-protected keystores
+  truststore list keystore.jks --password
+  truststore add ca.pem --target keystore.p12 --target-password
+
+Use "truststore [command] --help" for detailed information about each command.`,
 		Version: version,
 	}
 
 	// Register subcommands
 	cmd.AddCommand(app.NewListCommand())
 	cmd.AddCommand(app.NewAddCommand())
+	cmd.AddCommand(app.NewRmCommand())
 
 	return cmd
 }

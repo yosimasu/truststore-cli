@@ -1,0 +1,60 @@
+schema: 1
+story: "3.1"
+story_title: "Remove Root Certificate from Truststore via Source Identifier"
+gate: CONCERNS
+status_reason: "Implementation complete with all ACs met, but certificate comparison logic has potential security vulnerability requiring attention before production."
+reviewer: "Quinn (Test Architect)"
+updated: "2025-08-29T22:15:00Z"
+
+waiver: { active: false }
+
+top_issues:
+  - id: "SEC-001"
+    severity: medium
+    finding: "Certificate comparison using only SerialNumber + Issuer instead of full cryptographic comparison"
+    suggested_action: "Use cert.Equal() method for cryptographically secure certificate comparison"
+    suggested_owner: "dev"
+  - id: "TEST-001"
+    severity: medium  
+    finding: "Missing integration tests for end-to-end certificate removal workflow"
+    suggested_action: "Add integration tests covering full rm command workflow with all truststore formats"
+    suggested_owner: "dev"
+  - id: "PERF-001"
+    severity: low
+    finding: "Certificate search performs linear scan through target truststore"
+    suggested_action: "Consider optimization for large truststores in future iterations"
+    suggested_owner: "dev"
+
+quality_score: 80
+expires: "2025-09-12T22:15:00Z"
+
+evidence:
+  tests_reviewed: 12
+  risks_identified: 3
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6, 7, 8, 9]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: CONCERNS
+    notes: "Certificate comparison method could be more secure - should use full cryptographic comparison"
+  performance:
+    status: PASS
+    notes: "Adequate for expected usage patterns, loading indicators provide good UX"
+  reliability:
+    status: PASS
+    notes: "Comprehensive error handling and atomic file operations"
+  maintainability:
+    status: PASS
+    notes: "Clean architecture following established patterns, good test coverage"
+
+recommendations:
+  immediate:
+    - action: "Replace certificatesEqual() with cert.Equal() for secure certificate comparison"
+      refs: ["internal/app/rm.go:310-313"]
+    - action: "Add integration tests for complete rm workflow"
+      refs: ["internal/app/rm_test.go"]
+  future:
+    - action: "Consider certificate indexing for large truststore optimization"
+      refs: ["internal/store/"]

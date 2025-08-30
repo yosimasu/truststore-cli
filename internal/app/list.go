@@ -18,20 +18,54 @@ func NewListCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list [source]",
 		Short: "List certificates from a source",
-		Long: `List certificates from various sources including:
-  - Remote servers (e.g., example.org, example.org:443)
-  - Local PEM files (e.g., certificates.pem)  
-  - Local JKS files (e.g., keystore.jks)
-  - Local PKCS12 files (e.g., keystore.p12)
+		Long: `List certificates from various sources including remote servers and local files.
 
-Examples:
+SUPPORTED SOURCE TYPES:
+• Remote Servers: Connect via TLS and retrieve certificate chains
+  - Domain names: example.org, google.com
+  - Domain with port: example.org:443, localhost:8443
+  
+• Local PEM Files: Plain-text certificate files (no password required)
+  - Extensions: .pem, .crt, .cer
+  - Example: certificates.pem, ca-bundle.crt
+  
+• Local JKS Files: Java KeyStore format (password usually required)
+  - Extensions: .jks
+  - Example: keystore.jks, truststore.jks
+  
+• Local PKCS12 Files: Industry standard format (password usually required)  
+  - Extensions: .p12, .pfx
+  - Example: keystore.p12, certificate.pfx
+
+FLAGS:
+  -p, --password string   Password for protected keystores (JKS/PKCS12)
+                         Use --password=secret or --password for interactive prompt
+
+PASSWORD HANDLING:
+• Command line: --password=mysecret
+• Interactive prompt: --password (without value - more secure)
+• Not required for PEM files (they are not password-protected)
+
+EXAMPLES:
+  # List from remote servers  
   truststore list example.org
   truststore list example.org:443
+  
+  # List from PEM files (no password needed)
   truststore list certificates.pem
+  truststore list /path/to/ca-bundle.crt
+  
+  # List from protected keystores
   truststore list keystore.jks --password=secret
-  truststore list keystore.p12 --password       # prompts for password
+  truststore list keystore.p12 --password        # Interactive prompt
   truststore list keystore.jks -p=secret
-  truststore list keystore.p12 -p              # prompts for password`,
+  truststore list keystore.p12 -p               # Interactive prompt
+
+LOADING INDICATORS:
+During execution, you'll see progress indicators:
+  🔍 Connecting to [server]           - Establishing TLS connection
+  📋 Retrieving certificate from [server] - Downloading certificates  
+  📂 Reading certificates from [file] - Loading from local file`,
 		Args:         cobra.ExactArgs(1),
 		RunE:         runListCommand,
 		SilenceUsage: true, // Don't show usage on errors

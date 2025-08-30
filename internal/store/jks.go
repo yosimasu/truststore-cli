@@ -143,9 +143,96 @@ func (h *JksHandler) AddCertificate(filepath string, cert *x509.Certificate, pas
 	return nil
 }
 
-// RemoveCertificate removes a certificate from the JKS file (placeholder for future stories)
+// RemoveCertificate removes a certificate from the JKS file
 func (h *JksHandler) RemoveCertificate(filepath string, cert *x509.Certificate, password string) error {
-	return fmt.Errorf("RemoveCertificate not implemented for JKS files - will be added in future stories")
+	if password == "" {
+		return fmt.Errorf("password required for JKS file operations")
+	}
+
+	if cert == nil {
+		return fmt.Errorf("certificate cannot be nil")
+	}
+
+	// Load existing keystore
+	file, err := os.Open(filepath)
+	if err != nil {
+		return fmt.Errorf("failed to open JKS file %s: %w", filepath, err)
+	}
+
+	ks := keystore.New()
+	err = ks.Load(file, []byte(password))
+	file.Close()
+	if err != nil {
+		if isPasswordError(err) {
+			return fmt.Errorf("incorrect password for JKS file %s: provide the correct password", filepath)
+		}
+		return fmt.Errorf("failed to load JKS file %s: %w", filepath, err)
+	}
+
+	// Find and remove matching certificate entries
+	found := false
+	aliasesToRemove := []string{}
+
+	for _, alias := range ks.Aliases() {
+		if ks.IsPrivateKeyEntry(alias) {
+			// Check private key entry certificate chain
+			privateKeyEntry, err := ks.GetPrivateKeyEntry(alias, []byte(password))
+			if err != nil {
+				continue
+			}
+
+			// Check each certificate in the chain
+			for _, certBytes := range privateKeyEntry.CertificateChain {
+				parsedCert, err := x509.ParseCertificate(certBytes.Content)
+				if err != nil {
+					continue
+				}
+				if cert.Equal(parsedCert) {
+					aliasesToRemove = append(aliasesToRemove, alias)
+					found = true
+					break // Found matching cert in this chain
+				}
+			}
+		} else if ks.IsTrustedCertificateEntry(alias) {
+			// Check trusted certificate entry
+			trustedCertEntry, err := ks.GetTrustedCertificateEntry(alias)
+			if err != nil {
+				continue
+			}
+
+			parsedCert, err := x509.ParseCertificate(trustedCertEntry.Certificate.Content)
+			if err != nil {
+				continue
+			}
+			if cert.Equal(parsedCert) {
+				aliasesToRemove = append(aliasesToRemove, alias)
+				found = true
+			}
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("certificate not found in JKS file %s", filepath)
+	}
+
+	// Remove all matching entries
+	for _, alias := range aliasesToRemove {
+		ks.DeleteEntry(alias)
+	}
+
+	// Save the modified keystore back to file
+	outFile, err := os.Create(filepath)
+	if err != nil {
+		return fmt.Errorf("failed to create JKS file %s: %w", filepath, err)
+	}
+	defer outFile.Close()
+
+	err = ks.Store(outFile, []byte(password))
+	if err != nil {
+		return fmt.Errorf("failed to save JKS file %s: %w", filepath, err)
+	}
+
+	return nil
 }
 
 // generateCertificateAlias creates a unique alias for a certificate

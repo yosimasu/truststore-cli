@@ -219,18 +219,47 @@ func TestPkcs12Handler_AddCertificate_EmptyPassword(t *testing.T) {
 	}
 }
 
-func TestPkcs12Handler_RemoveCertificate_NotImplemented(t *testing.T) {
+func TestPkcs12Handler_RemoveCertificate(t *testing.T) {
 	handler := NewPkcs12Handler()
+	tempDir := t.TempDir()
+	testFile := filepath.Join(tempDir, "test.p12")
+	password := "testpassword"
 
-	err := handler.RemoveCertificate("test.p12", nil, "password")
-
-	if err == nil {
-		t.Fatal("Expected not implemented error, got none")
+	// Test with nil certificate
+	err := handler.RemoveCertificate(testFile, nil, password)
+	if err == nil || !strings.Contains(err.Error(), "certificate cannot be nil") {
+		t.Errorf("RemoveCertificate() should return error for nil certificate, got: %v", err)
 	}
 
-	errStr := err.Error()
-	if !strings.Contains(errStr, "not implemented") {
-		t.Errorf("Expected 'not implemented' in error message, got: %s", errStr)
+	// Test with empty password
+	cert := createTestCertificate(t)
+	err = handler.RemoveCertificate(testFile, cert, "")
+	if err == nil || !strings.Contains(err.Error(), "password required") {
+		t.Errorf("RemoveCertificate() should return error for empty password, got: %v", err)
+	}
+
+	// Add a certificate first
+	err = handler.AddCertificate(testFile, cert, password)
+	if err != nil {
+		t.Fatalf("Failed to add certificate: %v", err)
+	}
+
+	// Test removing the certificate
+	err = handler.RemoveCertificate(testFile, cert, password)
+	if err != nil {
+		t.Errorf("RemoveCertificate() failed: %v", err)
+	}
+
+	// Verify file was removed (since no certificates remain)
+	if _, err := os.Stat(testFile); !os.IsNotExist(err) {
+		t.Error("Expected file to be removed when all certificates are removed")
+	}
+
+	// Test removing from non-existent file
+	nonExistentFile := filepath.Join(tempDir, "nonexistent.p12")
+	err = handler.RemoveCertificate(nonExistentFile, cert, password)
+	if err == nil {
+		t.Error("RemoveCertificate() should return error for non-existent file")
 	}
 }
 

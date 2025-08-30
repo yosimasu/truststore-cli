@@ -23,17 +23,70 @@ func NewAddCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "add [source]",
 		Short: "Add root certificate from a source to a truststore file",
-		Long: `Add root certificates from various sources to truststore files:
-  - Remote servers (e.g., example.org, example.org:443) 
-  - Local certificate files (e.g., ca.pem, cert.crt)
+		Long: `Add root certificates from various sources to truststore files. The command 
+automatically identifies the root certificate in the certificate chain and adds it 
+to the target truststore file. If the target file doesn't exist, it will be created.
 
-The command identifies the root certificate in the chain and adds it to the target file.
-If the target file doesn't exist, it will be created.
+SUPPORTED SOURCE TYPES:
+• Remote Servers: Retrieve certificate via TLS connection
+  - Domain names: example.org, google.com
+  - Domain with port: example.org:443, localhost:8443
+  
+• Local Certificate Files: Read certificates from local files
+  - PEM files: ca.pem, cert.crt, certificate.cer  
+  - JKS files: keystore.jks (requires --password)
+  - PKCS12 files: keystore.p12, cert.pfx (requires --password)
 
-Examples:
+SUPPORTED TARGET FORMATS:
+• PEM Files: Plain-text format, will be created if doesn't exist
+  - Extensions: .pem, .crt, .cer
+  
+• JKS Files: Java KeyStore format (requires --target-password)
+  - Extensions: .jks
+  
+• PKCS12 Files: Industry standard format (requires --target-password)
+  - Extensions: .p12, .pfx
+
+REQUIRED FLAGS:
+  -t, --target string          Target truststore file path (required)
+
+OPTIONAL FLAGS:  
+  -p, --password string        Password for source keystore (JKS/PKCS12 sources only)
+      --target-password string Password for target keystore (JKS/PKCS12 targets only)
+                               Use flag=value or flag for interactive prompt
+
+CERTIFICATE CHAIN COMPLETION:
+The command uses Certificate Transparency logs to complete partial certificate 
+chains and identify the proper root certificate. This ensures you always get 
+the correct root certificate even from intermediate certificates.
+
+EXAMPLES:
+  # Add from remote servers to PEM file
   truststore add example.org --target trusted_certs.pem
+  truststore add example.org:443 --target ca-bundle.pem
+  
+  # Add from local certificate files to PEM file  
   truststore add ca.pem --target trusted_certs.pem
-  truststore add /path/to/certificate.crt --target trusted_certs.pem`,
+  truststore add /path/to/certificate.crt --target trusted_certs.pem
+  
+  # Add from protected source keystore
+  truststore add source.jks --password=secret --target trusted_certs.pem
+  truststore add source.p12 --password --target trusted_certs.pem
+  
+  # Add to protected target keystore
+  truststore add example.org --target keystore.jks --target-password=secret
+  truststore add ca.pem --target keystore.p12 --target-password
+  
+  # Source and target both password-protected  
+  truststore add source.jks --password=src_pass --target target.p12 --target-password=tgt_pass
+
+LOADING INDICATORS:
+During execution, you'll see progress indicators:
+  🔍 Connecting to [server]              - Establishing TLS connection
+  📋 Retrieving certificate from [server] - Downloading certificate
+  🔗 Completing certificate chain via CT logs - Finding root certificate  
+  📂 Reading certificates from [file]    - Loading from source file
+  ✏️ Adding certificate to [file]       - Writing to target truststore`,
 		Args:         cobra.ExactArgs(1),
 		RunE:         runAddCommand,
 		SilenceUsage: true, // Don't show usage on errors
