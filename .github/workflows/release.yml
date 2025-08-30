@@ -1,0 +1,165 @@
+name: Build and Release
+
+on:
+  # Run tests on pushes and pull requests
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  
+  # Build and release on version tags
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  # Test job - runs on all push/PR events
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+    
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v4
+    
+    - name: Set up asdf
+      uses: asdf-vm/actions/setup@v3
+      
+    - name: Install tools from .tool-versions
+      run: |
+        asdf plugin add golang || true
+        asdf plugin add golangci-lint || true
+        asdf plugin add java || true
+        asdf install
+        
+    - name: Cache Go modules
+      uses: actions/cache@v4
+      with:
+        path: ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+    
+    - name: Download dependencies
+      run: go mod download
+    
+    - name: Run tests
+      run: make test
+    
+    - name: Run linter
+      run: make lint
+
+  # Build and release job - runs only on version tags
+  build-and-release:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Full history for changelog generation
+    
+    - name: Set up asdf
+      uses: asdf-vm/actions/setup@v3
+      
+    - name: Install tools from .tool-versions
+      run: |
+        asdf plugin add golang || true
+        asdf plugin add golangci-lint || true
+        asdf plugin add java || true
+        asdf install
+        
+    - name: Cache Go modules
+      uses: actions/cache@v4
+      with:
+        path: ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+    
+    - name: Download dependencies
+      run: go mod download
+    
+    - name: Run tests
+      run: make test
+    
+    - name: Run linter
+      run: make lint
+    
+    - name: Build cross-platform binaries
+      run: make build-all
+    
+    - name: Prepare release artifacts
+      run: |
+        # Create release directory
+        mkdir -p release
+        
+        # Copy binaries with proper names for release
+        cp dist/darwin/amd64/truststore release/truststore-darwin-amd64
+        cp dist/darwin/arm64/truststore release/truststore-darwin-arm64
+        cp dist/linux/amd64/truststore release/truststore-linux-amd64
+        cp dist/linux/arm64/truststore release/truststore-linux-arm64
+        cp dist/windows/amd64/truststore.exe release/truststore-windows-amd64.exe
+    
+    - name: Generate release notes
+      id: release_notes
+      run: |
+        # Get the tag name
+        TAG_NAME=${GITHUB_REF#refs/tags/}
+        
+        # Get previous tag for changelog
+        PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
+        
+        # Generate release notes
+        if [ -n "$PREVIOUS_TAG" ]; then
+          echo "## What's Changed" > release_notes.md
+          echo "" >> release_notes.md
+          git log --pretty=format:"- %s (%h)" "$PREVIOUS_TAG..HEAD" >> release_notes.md
+        else
+          echo "## Initial Release" > release_notes.md
+          echo "" >> release_notes.md
+          echo "This is the first release of the truststore CLI tool." >> release_notes.md
+        fi
+        
+        echo "" >> release_notes.md
+        echo "## Installation" >> release_notes.md
+        echo "" >> release_notes.md
+        echo "Download the appropriate binary for your platform from the assets below." >> release_notes.md
+        echo "" >> release_notes.md
+        echo "**Repository**: https://github.com/yosimasu/truststore-cli" >> release_notes.md
+        echo "" >> release_notes.md
+        echo "### macOS" >> release_notes.md
+        echo "- Intel: \`truststore-darwin-amd64\`" >> release_notes.md
+        echo "- Apple Silicon: \`truststore-darwin-arm64\`" >> release_notes.md
+        echo "" >> release_notes.md
+        echo "### Linux" >> release_notes.md
+        echo "- x64: \`truststore-linux-amd64\`" >> release_notes.md
+        echo "- ARM64: \`truststore-linux-arm64\`" >> release_notes.md
+        echo "" >> release_notes.md
+        echo "### Windows" >> release_notes.md
+        echo "- x64: \`truststore-windows-amd64.exe\`" >> release_notes.md
+        
+        # Set output for use in release step
+        echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+    
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ steps.release_notes.outputs.tag_name }}
+        name: Release ${{ steps.release_notes.outputs.tag_name }}
+        body_path: release_notes.md
+        files: |
+          release/truststore-darwin-amd64
+          release/truststore-darwin-arm64
+          release/truststore-linux-amd64
+          release/truststore-linux-arm64
+          release/truststore-windows-amd64.exe
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

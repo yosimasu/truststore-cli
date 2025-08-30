@@ -94,7 +94,9 @@ During execution, you'll see progress indicators:
 
 	// Add target flag - required
 	cmd.Flags().StringP("target", "t", "", "Target truststore file path (required)")
-	cmd.MarkFlagRequired("target")
+	if err := cmd.MarkFlagRequired("target"); err != nil {
+		panic(fmt.Sprintf("failed to mark target flag as required: %v", err))
+	}
 
 	// Add password flag for reading source keystore files
 	cmd.Flags().StringP("password", "p", "", "Password for source keystore (required when source is JKS/PKCS12). Use --password=<password> or --password for interactive prompt")
@@ -310,7 +312,9 @@ func validateTargetPath(target string) error {
 		}
 		file.Close()
 		// Remove the test file
-		os.Remove(target)
+		if err := os.Remove(target); err != nil {
+			// Log but don't fail - the file creation test already succeeded
+		}
 	} else {
 		return fmt.Errorf("cannot access file %s: %w", target, err)
 	}

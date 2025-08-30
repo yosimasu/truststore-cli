@@ -32,3 +32,5 @@ Thumbs.db
 
 # Debug logs
 .ai/
+release/
+release_notes.md

@@ -103,7 +103,9 @@ ERROR HANDLING:
 
 	// Add target flag - required
 	cmd.Flags().StringP("target", "t", "", "Target truststore file path (required)")
-	cmd.MarkFlagRequired("target")
+	if err := cmd.MarkFlagRequired("target"); err != nil {
+		panic(fmt.Sprintf("failed to mark target flag as required: %v", err))
+	}
 
 	// Add password flag for reading source keystore files
 	cmd.Flags().StringP("password", "p", "", "Password for source keystore (required when source is JKS/PKCS12). Use --password=<password> or --password for interactive prompt")

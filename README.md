@@ -2,8 +2,8 @@
 
 A cross-platform command-line tool for managing digital certificates and truststores across multiple formats (PEM, JKS, PKCS12).
 
-[![Build Status](https://github.com/truststore/cli/actions/workflows/release.yml/badge.svg)](https://github.com/truststore/cli/actions/workflows/release.yml)
-[![Go Report Card](https://goreportcard.com/badge/github.com/truststore/cli)](https://goreportcard.com/report/github.com/truststore/cli)
+[![Build Status](https://github.com/yosimasu/truststore-cli/actions/workflows/release.yml/badge.svg)](https://github.com/yosimasu/truststore-cli/actions/workflows/release.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/yosimasu/truststore-cli)](https://goreportcard.com/report/github.com/yosimasu/truststore-cli)
 
 ## Features
 
@@ -20,18 +20,18 @@ A cross-platform command-line tool for managing digital certificates and trustst
 
 ### Binary Downloads
 
-Download pre-built binaries from the [releases page](https://github.com/truststore/cli/releases).
+Download pre-built binaries from the [releases page](https://github.com/yosimasu/truststore-cli/releases).
 
 #### macOS
 
 ```bash
 # Intel Macs
-curl -L -o truststore https://github.com/truststore/cli/releases/latest/download/truststore-darwin-amd64
+curl -L -o truststore https://github.com/yosimasu/truststore-cli/releases/latest/download/truststore-darwin-amd64
 chmod +x truststore
 sudo mv truststore /usr/local/bin/
 
 # Apple Silicon Macs
-curl -L -o truststore https://github.com/truststore/cli/releases/latest/download/truststore-darwin-arm64
+curl -L -o truststore https://github.com/yosimasu/truststore-cli/releases/latest/download/truststore-darwin-arm64
 chmod +x truststore
 sudo mv truststore /usr/local/bin/
 ```
@@ -40,12 +40,12 @@ sudo mv truststore /usr/local/bin/
 
 ```bash
 # x64
-curl -L -o truststore https://github.com/truststore/cli/releases/latest/download/truststore-linux-amd64
+curl -L -o truststore https://github.com/yosimasu/truststore-cli/releases/latest/download/truststore-linux-amd64
 chmod +x truststore
 sudo mv truststore /usr/local/bin/
 
 # ARM64
-curl -L -o truststore https://github.com/truststore/cli/releases/latest/download/truststore-linux-arm64
+curl -L -o truststore https://github.com/yosimasu/truststore-cli/releases/latest/download/truststore-linux-arm64
 chmod +x truststore
 sudo mv truststore /usr/local/bin/
 ```
@@ -55,7 +55,7 @@ sudo mv truststore /usr/local/bin/
 ```powershell
 # Download truststore.exe from releases page and add to PATH
 # Or using PowerShell:
-Invoke-WebRequest -Uri "https://github.com/truststore/cli/releases/latest/download/truststore-windows-amd64.exe" -OutFile "truststore.exe"
+Invoke-WebRequest -Uri "https://github.com/yosimasu/truststore-cli/releases/latest/download/truststore-windows-amd64.exe" -OutFile "truststore.exe"
 # Move truststore.exe to a directory in your PATH
 ```
 
@@ -63,7 +63,7 @@ Invoke-WebRequest -Uri "https://github.com/truststore/cli/releases/latest/downlo
 
 ```bash
 # Requires Go 1.25.0+
-go install github.com/truststore/cli/cmd/truststore@latest
+go install github.com/yosimasu/truststore-cli/cmd/truststore@latest
 ```
 
 ## Quick Start
@@ -274,8 +274,8 @@ We welcome contributions! Here's how to get started:
 
 2. **Clone the repository**:
    ```bash
-   git clone https://github.com/truststore/cli.git
-   cd cli
+   git clone https://github.com/yosimasu/truststore-cli.git
+   cd truststore-cli
    ```
 
 3. **Install dependencies**:
@@ -351,4 +351,4 @@ make clean
 
 Current version: `dev` (development)
 
-For release versions, see the [releases page](https://github.com/truststore/cli/releases).
+For release versions, see the [releases page](https://github.com/yosimasu/truststore-cli/releases).
