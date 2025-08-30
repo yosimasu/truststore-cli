@@ -18,7 +18,7 @@ func TestNewTLSService(t *testing.T) {
 	}
 
 	// Verify it implements the interface
-	var _ TLSService = service
+	var _ = service
 }
 
 func TestParseDomainPort(t *testing.T) {

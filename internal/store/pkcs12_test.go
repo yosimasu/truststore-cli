@@ -98,14 +98,14 @@ func TestPkcs12Handler_ReadCertificates_InvalidFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tmpFile.Name())
+	defer func() { _ = os.Remove(tmpFile.Name()) }()
 
 	// Write invalid content
 	_, err = tmpFile.WriteString("invalid pkcs12 content")
 	if err != nil {
 		t.Fatalf("Failed to write invalid content: %v", err)
 	}
-	tmpFile.Close()
+	_ = tmpFile.Close()
 
 	_, err = handler.ReadCertificates(tmpFile.Name(), "password")
 
@@ -122,7 +122,7 @@ func TestPkcs12Handler_AddCertificate_NewFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	// Generate a test certificate
 	cert := generateTestCertForPkcs12(t)
@@ -165,7 +165,7 @@ func TestPkcs12Handler_AddCertificate_ExistingFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	p12File := filepath.Join(tempDir, "test.p12")
 	password := "testpass"
@@ -203,7 +203,7 @@ func TestPkcs12Handler_AddCertificate_EmptyPassword(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	p12File := filepath.Join(tempDir, "test.p12")
 	cert := generateTestCertForPkcs12(t)

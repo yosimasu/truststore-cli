@@ -335,7 +335,10 @@ func validateTargetFileExists(target string) error {
 	if err != nil {
 		return fmt.Errorf("cannot write to target file %s: %w", target, err)
 	}
-	file.Close()
+	if err := file.Close(); err != nil {
+		// Log file close error but don't fail - operation already completed
+		_ = err
+	}
 
 	return nil
 }

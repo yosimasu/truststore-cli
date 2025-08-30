@@ -52,7 +52,7 @@ func NewMockServer(config MockServerConfig) *MockServer {
 		// Fail after specified attempts
 		if mock.config.FailAfterAttempts > 0 && int(count) > mock.config.FailAfterAttempts {
 			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte("Mock server configured to fail"))
+			_, _ = w.Write([]byte("Mock server configured to fail"))
 			return
 		}
 
@@ -65,7 +65,7 @@ func NewMockServer(config MockServerConfig) *MockServer {
 
 		// Return configured response body
 		if mock.config.ResponseBody != "" {
-			w.Write([]byte(mock.config.ResponseBody))
+			_, _ = w.Write([]byte(mock.config.ResponseBody))
 		}
 	}))
 
@@ -110,7 +110,10 @@ func NewMockNetworkErrorServer() *MockServer {
 		if ok {
 			conn, _, _ := hj.Hijack()
 			if conn != nil {
-				conn.Close()
+				if err := conn.Close(); err != nil {
+					// Log but don't fail - mock cleanup
+					_ = err
+				}
 			}
 		}
 	}))
@@ -147,7 +150,7 @@ func NewCTLogMockServer() *CTLogMockServer {
 
 		// Unknown request
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("Unknown request"))
+		_, _ = w.Write([]byte("Unknown request"))
 	}))
 
 	mock.MockServer = &MockServer{
@@ -164,7 +167,7 @@ func (m *CTLogMockServer) handleSearchRequest(w http.ResponseWriter, r *http.Req
 	switch cn {
 	case "example.org":
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`[
+		_, _ = w.Write([]byte(`[
 			{
 				"id": 123456789,
 				"common_name": "example.org",
@@ -177,15 +180,15 @@ func (m *CTLogMockServer) handleSearchRequest(w http.ResponseWriter, r *http.Req
 	case "notfound.example":
 		// Return empty array for no results
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`[]`))
+		_, _ = w.Write([]byte(`[]`))
 	case "error.example":
 		// Return server error
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Internal server error"))
+		_, _ = w.Write([]byte("Internal server error"))
 	default:
 		// Return generic result
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(fmt.Sprintf(`[
+		_, _ = fmt.Fprintf(w, `[
 			{
 				"id": 987654321,
 				"common_name": "%s",
@@ -194,7 +197,7 @@ func (m *CTLogMockServer) handleSearchRequest(w http.ResponseWriter, r *http.Req
 				"not_before": "2025-01-01T00:00:00Z",
 				"not_after": "2026-01-01T00:00:00Z"
 			}
-		]`, cn)))
+		]`, cn)
 	}
 }
 
@@ -205,19 +208,19 @@ func (m *CTLogMockServer) handleDownloadRequest(w http.ResponseWriter, r *http.R
 	case "123456789", "987654321":
 		// Return valid certificate
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(testCertPEM))
+		_, _ = w.Write([]byte(testCertPEM))
 	case "404":
 		// Return not found
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte("Certificate not found"))
+		_, _ = w.Write([]byte("Certificate not found"))
 	case "500":
 		// Return server error
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Internal server error"))
+		_, _ = w.Write([]byte("Internal server error"))
 	default:
 		// Return invalid PEM
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Invalid certificate data"))
+		_, _ = w.Write([]byte("Invalid certificate data"))
 	}
 }
 

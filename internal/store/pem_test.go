@@ -133,7 +133,7 @@ func TestPemHandler_ReadCertificates_FilePermissions(t *testing.T) {
 
 	// Restore permissions for cleanup
 	defer func() {
-		os.Chmod(restrictedFile, 0644)
+		_ = os.Chmod(restrictedFile, 0644)
 	}()
 
 	_, err := handler.ReadCertificates(restrictedFile, "")
@@ -336,7 +336,7 @@ func TestPemHandler_CertificateExists(t *testing.T) {
 
 	// Test with non-existent file
 	nonExistentFile := filepath.Join(tempDir, "nonexistent.pem")
-	exists, err = handler.certificateExists(nonExistentFile, testCert1)
+	_, err = handler.certificateExists(nonExistentFile, testCert1)
 	if err == nil {
 		t.Error("certificateExists() should fail for non-existent file")
 	}

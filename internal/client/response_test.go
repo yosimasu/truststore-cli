@@ -1,7 +1,6 @@
 package client
 
 import (
-	"bytes"
 	"io"
 	"net/http"
 	"net/url"
@@ -378,11 +377,3 @@ func TestResponseHandler_ProcessResponse(t *testing.T) {
 	}
 }
 
-// Test helper to create a response with a specific body
-func createTestResponse(statusCode int, body string) *http.Response {
-	return &http.Response{
-		StatusCode: statusCode,
-		Body:       io.NopCloser(bytes.NewBufferString(body)),
-		Request:    &http.Request{URL: &url.URL{Scheme: "http", Host: "example.com"}},
-	}
-}

@@ -1,16 +1,13 @@
 name: Build and Release
 
 on:
-  # Run tests on pushes and pull requests
+  # Run tests on pushes and pull requests, build and release on version tags
   push:
     branches: [ main, develop ]
-  pull_request:
-    branches: [ main, develop ]
-  
-  # Build and release on version tags
-  push:
     tags:
       - 'v*'
+  pull_request:
+    branches: [ main, develop ]
 
 jobs:
   # Test job - runs on all push/PR events
@@ -24,7 +21,7 @@ jobs:
       uses: actions/checkout@v4
     
     - name: Set up asdf
-      uses: asdf-vm/actions/setup@v3
+      uses: asdf-vm/actions/setup@v4
       
     - name: Install tools from .tool-versions
       run: |
@@ -65,7 +62,7 @@ jobs:
         fetch-depth: 0  # Full history for changelog generation
     
     - name: Set up asdf
-      uses: asdf-vm/actions/setup@v3
+      uses: asdf-vm/actions/setup@v4
       
     - name: Install tools from .tool-versions
       run: |

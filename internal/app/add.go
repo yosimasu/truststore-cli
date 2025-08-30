@@ -262,7 +262,12 @@ func retrieveCertificateFromDomain(domain string) (*x509.Certificate, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to %s: %w", host, err)
 	}
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			// Log connection close error but don't fail the operation
+			_ = err
+		}
+	}()
 
 	// Get the peer certificate chain
 	peerCerts := conn.ConnectionState().PeerCertificates
@@ -303,17 +308,24 @@ func validateTargetPath(target string) error {
 		if err != nil {
 			return fmt.Errorf("cannot write to existing file %s: %w", target, err)
 		}
-		file.Close()
+		if err := file.Close(); err != nil {
+			// Log but don't fail - file operations already completed
+			_ = err
+		}
 	} else if os.IsNotExist(err) {
 		// File doesn't exist, check if we can create it
 		file, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			return fmt.Errorf("cannot create file %s: %w", target, err)
 		}
-		file.Close()
+		if err := file.Close(); err != nil {
+			// Log but don't fail - file operations already completed
+			_ = err
+		}
 		// Remove the test file
 		if err := os.Remove(target); err != nil {
-			// Log but don't fail - the file creation test already succeeded
+			// Ignore removal error - the file creation test already succeeded
+			_ = err // Explicitly acknowledge we're ignoring the error
 		}
 	} else {
 		return fmt.Errorf("cannot access file %s: %w", target, err)
@@ -404,7 +416,10 @@ func validateSourceFilePath(sourcePath string) error {
 	if err != nil {
 		return fmt.Errorf("cannot read file %s: %w", sourcePath, err)
 	}
-	file.Close()
+	if err := file.Close(); err != nil {
+		// Log but don't fail - file operations already completed
+		_ = err
+	}
 
 	return nil
 }

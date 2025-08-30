@@ -16,20 +16,20 @@ func TestDefaultIntegrationConfig(t *testing.T) {
 
 	defer func() {
 		// Restore original env vars
-		os.Setenv("OFFLINE_TESTS", originalOffline)
-		os.Setenv("CI", originalCI)
-		os.Setenv("MOCK_MODE", originalMock)
-		os.Setenv("TEST_BASE_URL", originalBaseURL)
-		os.Setenv("TEST_TIMEOUT", originalTimeout)
+		_ = os.Setenv("OFFLINE_TESTS", originalOffline)
+		_ = os.Setenv("CI", originalCI)
+		_ = os.Setenv("MOCK_MODE", originalMock)
+		_ = os.Setenv("TEST_BASE_URL", originalBaseURL)
+		_ = os.Setenv("TEST_TIMEOUT", originalTimeout)
 	}()
 
 	t.Run("default config", func(t *testing.T) {
 		// Clear env vars
-		os.Unsetenv("OFFLINE_TESTS")
-		os.Unsetenv("CI")
-		os.Unsetenv("MOCK_MODE")
-		os.Unsetenv("TEST_BASE_URL")
-		os.Unsetenv("TEST_TIMEOUT")
+		_ = os.Unsetenv("OFFLINE_TESTS")
+		_ = os.Unsetenv("CI")
+		_ = os.Unsetenv("MOCK_MODE")
+		_ = os.Unsetenv("TEST_BASE_URL")
+		_ = os.Unsetenv("TEST_TIMEOUT")
 
 		config := DefaultIntegrationConfig()
 		
@@ -48,7 +48,7 @@ func TestDefaultIntegrationConfig(t *testing.T) {
 	})
 
 	t.Run("offline tests enabled", func(t *testing.T) {
-		os.Setenv("OFFLINE_TESTS", "true")
+		_ = os.Setenv("OFFLINE_TESTS", "true")
 		
 		config := DefaultIntegrationConfig()
 		if config.OnlineTestsEnabled {
@@ -57,8 +57,8 @@ func TestDefaultIntegrationConfig(t *testing.T) {
 	})
 
 	t.Run("CI environment", func(t *testing.T) {
-		os.Unsetenv("OFFLINE_TESTS")
-		os.Setenv("CI", "true")
+		_ = os.Unsetenv("OFFLINE_TESTS")
+		_ = os.Setenv("CI", "true")
 		
 		config := DefaultIntegrationConfig()
 		if config.OnlineTestsEnabled {
@@ -67,7 +67,7 @@ func TestDefaultIntegrationConfig(t *testing.T) {
 	})
 
 	t.Run("mock mode enabled", func(t *testing.T) {
-		os.Setenv("MOCK_MODE", "true")
+		_ = os.Setenv("MOCK_MODE", "true")
 		
 		config := DefaultIntegrationConfig()
 		if !config.MockMode {
@@ -77,7 +77,7 @@ func TestDefaultIntegrationConfig(t *testing.T) {
 
 	t.Run("custom base URL", func(t *testing.T) {
 		expectedURL := "https://test.example.com"
-		os.Setenv("TEST_BASE_URL", expectedURL)
+		_ = os.Setenv("TEST_BASE_URL", expectedURL)
 		
 		config := DefaultIntegrationConfig()
 		if config.BaseURL != expectedURL {
@@ -86,7 +86,7 @@ func TestDefaultIntegrationConfig(t *testing.T) {
 	})
 
 	t.Run("custom timeout", func(t *testing.T) {
-		os.Setenv("TEST_TIMEOUT", "45s")
+		_ = os.Setenv("TEST_TIMEOUT", "45s")
 		
 		config := DefaultIntegrationConfig()
 		if config.TestTimeout != 45*time.Second {
@@ -95,7 +95,7 @@ func TestDefaultIntegrationConfig(t *testing.T) {
 	})
 
 	t.Run("invalid timeout", func(t *testing.T) {
-		os.Setenv("TEST_TIMEOUT", "invalid")
+		_ = os.Setenv("TEST_TIMEOUT", "invalid")
 		
 		config := DefaultIntegrationConfig()
 		if config.TestTimeout != 30*time.Second {
@@ -299,8 +299,10 @@ func TestIntegrationTestSuite_RunModeTests(t *testing.T) {
 		// Just verify the method runs without panicking
 		if s.IsOnlineMode() {
 			// Online mode test
+			_ = s
 		} else {
 			// Offline mode test
+			_ = s
 		}
 	})
 	

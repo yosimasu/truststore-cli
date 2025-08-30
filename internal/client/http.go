@@ -89,7 +89,10 @@ func (c *httpClient) GetWithContext(ctx context.Context, url string) (*http.Resp
 
 		// Check if response status indicates we should retry
 		if c.shouldRetryStatus(resp.StatusCode) {
-			resp.Body.Close()
+			if err := resp.Body.Close(); err != nil {
+				// Log but don't fail - we're already retrying
+				_ = err
+			}
 			lastErr = fmt.Errorf("HTTP request returned status %d (attempt %d/%d)", resp.StatusCode, attempt+1, c.config.MaxRetries+1)
 			continue
 		}

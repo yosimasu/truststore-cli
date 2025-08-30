@@ -24,7 +24,7 @@ func TestNewMockServer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to make request: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", resp.StatusCode)
@@ -51,7 +51,7 @@ func TestMockServer_ResponseDelay(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to make request: %v", err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	
 	if duration < 100*time.Millisecond {
 		t.Errorf("Expected at least 100ms delay, got %v", duration)
@@ -72,7 +72,7 @@ func TestMockServer_FailAfterAttempts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("First request failed: %v", err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("First request: expected status 200, got %d", resp.StatusCode)
 	}
@@ -82,7 +82,7 @@ func TestMockServer_FailAfterAttempts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Second request failed: %v", err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Second request: expected status 200, got %d", resp.StatusCode)
 	}
@@ -92,7 +92,7 @@ func TestMockServer_FailAfterAttempts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Third request failed: %v", err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusInternalServerError {
 		t.Errorf("Third request: expected status 500, got %d", resp.StatusCode)
 	}
@@ -112,7 +112,7 @@ func TestMockServer_RequestCount(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Request %d failed: %v", i, err)
 		}
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		
 		if server.RequestCount() != i {
 			t.Errorf("After %d requests, expected count %d, got %d", i, i, server.RequestCount())
@@ -168,7 +168,7 @@ func TestNewCTLogMockServer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Search request failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Search request: expected status 200, got %d", resp.StatusCode)
@@ -179,7 +179,7 @@ func TestNewCTLogMockServer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Download request failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Download request: expected status 200, got %d", resp.StatusCode)
@@ -208,7 +208,7 @@ func TestCTLogMockServer_SearchScenarios(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Request failed: %v", err)
 			}
-			defer resp.Body.Close()
+			defer func() { _ = resp.Body.Close() }()
 			
 			if resp.StatusCode != test.expectedStatus {
 				t.Errorf("Expected status %d, got %d", test.expectedStatus, resp.StatusCode)
@@ -240,7 +240,7 @@ func TestCTLogMockServer_DownloadScenarios(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Request failed: %v", err)
 			}
-			defer resp.Body.Close()
+			defer func() { _ = resp.Body.Close() }()
 			
 			if resp.StatusCode != test.expectedStatus {
 				t.Errorf("Expected status %d, got %d", test.expectedStatus, resp.StatusCode)
@@ -257,7 +257,7 @@ func TestCTLogMockServer_UnknownRequest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Request failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("Expected status 400, got %d", resp.StatusCode)

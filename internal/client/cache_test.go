@@ -101,6 +101,7 @@ func TestMemoryCache_Certificates(t *testing.T) {
 		}
 		if result == nil {
 			t.Error("GetCertificate() result should not be nil on cache hit")
+			return
 		}
 		if result.Subject.CommonName != cert.Subject.CommonName {
 			t.Errorf("GetCertificate() CommonName = %s, want %s", result.Subject.CommonName, cert.Subject.CommonName)

@@ -52,7 +52,12 @@ func (s *tlsService) GetCertificateChain(domain string) ([]*x509.Certificate, er
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to %s: %w", address, err)
 	}
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			// Log connection close error but don't fail the operation
+			_ = err
+		}
+	}()
 
 	// Get the connection state
 	state := conn.ConnectionState()

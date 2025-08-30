@@ -81,7 +81,7 @@ func (nc *NetworkConnectivity) CanReachURLWithContext(ctx context.Context, url s
 	if err != nil {
 		return false
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	
 	// Consider any response (even errors) as connectivity
 	return true
@@ -119,7 +119,10 @@ func (nc *NetworkConnectivity) canConnect(ctx context.Context, host string) bool
 		return false
 	}
 	
-	conn.Close()
+	if err := conn.Close(); err != nil {
+		// Log but don't fail - connectivity test already succeeded
+		_ = err
+	}
 	return true
 }
 

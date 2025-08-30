@@ -27,6 +27,7 @@ func TestNewListCommand(t *testing.T) {
 	passwordFlag := cmd.Flags().Lookup("password")
 	if passwordFlag == nil {
 		t.Error("Expected 'password' flag to be available")
+		return
 	}
 
 	if passwordFlag.Shorthand != "p" {

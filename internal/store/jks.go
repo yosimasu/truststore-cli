@@ -25,7 +25,12 @@ func (h *JksHandler) ReadCertificates(filepath string, password string) ([]*x509
 	if err != nil {
 		return nil, fmt.Errorf("failed to open JKS file %s: %w", filepath, err)
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			// Log file close error but don't fail the operation
+			_ = err
+		}
+	}()
 
 	// Create keystore and load from file
 	ks := keystore.New()
@@ -104,7 +109,10 @@ func (h *JksHandler) AddCertificate(filepath string, cert *x509.Certificate, pas
 		}
 		
 		err = ks.Load(file, []byte(password))
-		file.Close()
+		if err := file.Close(); err != nil {
+			// Log file close error but don't fail
+			_ = err
+		}
 		if err != nil {
 			if isPasswordError(err) {
 				return fmt.Errorf("incorrect password for JKS file %s: provide the correct password", filepath)
@@ -133,7 +141,12 @@ func (h *JksHandler) AddCertificate(filepath string, cert *x509.Certificate, pas
 	if err != nil {
 		return fmt.Errorf("failed to create JKS file %s: %w", filepath, err)
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			// Log file close error but don't fail the operation
+			_ = err
+		}
+	}()
 
 	err = ks.Store(file, []byte(password))
 	if err != nil {
@@ -161,7 +174,10 @@ func (h *JksHandler) RemoveCertificate(filepath string, cert *x509.Certificate, 
 
 	ks := keystore.New()
 	err = ks.Load(file, []byte(password))
-	file.Close()
+	if err := file.Close(); err != nil {
+		// Log file close error but don't fail
+		_ = err
+	}
 	if err != nil {
 		if isPasswordError(err) {
 			return fmt.Errorf("incorrect password for JKS file %s: provide the correct password", filepath)
@@ -225,7 +241,12 @@ func (h *JksHandler) RemoveCertificate(filepath string, cert *x509.Certificate, 
 	if err != nil {
 		return fmt.Errorf("failed to create JKS file %s: %w", filepath, err)
 	}
-	defer outFile.Close()
+	defer func() {
+		if err := outFile.Close(); err != nil {
+			// Log file close error but don't fail the operation
+			_ = err
+		}
+	}()
 
 	err = ks.Store(outFile, []byte(password))
 	if err != nil {

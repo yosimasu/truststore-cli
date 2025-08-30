@@ -76,14 +76,14 @@ func TestJksHandler_ReadCertificates_InvalidFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tmpFile.Name())
+	defer func() { _ = os.Remove(tmpFile.Name()) }()
 
 	// Write invalid content
 	_, err = tmpFile.WriteString("invalid jks content")
 	if err != nil {
 		t.Fatalf("Failed to write invalid content: %v", err)
 	}
-	tmpFile.Close()
+	_ = tmpFile.Close()
 
 	_, err = handler.ReadCertificates(tmpFile.Name(), "password")
 
@@ -190,7 +190,7 @@ func TestJksHandler_AddCertificate_NewFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	// Generate a test certificate
 	cert := generateTestCert(t)
@@ -233,7 +233,7 @@ func TestJksHandler_AddCertificate_ExistingFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	jksFile := filepath.Join(tempDir, "test.jks")
 	password := "testpass"
@@ -290,7 +290,7 @@ func TestJksHandler_AddCertificate_EmptyPassword(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	jksFile := filepath.Join(tempDir, "test.jks")
 	cert := generateTestCert(t)
@@ -309,6 +309,7 @@ func TestJksHandler_AddCertificate_EmptyPassword(t *testing.T) {
 func TestGenerateCertificateAlias(t *testing.T) {
 	// Generate multiple aliases
 	alias1 := generateCertificateAlias()
+	time.Sleep(time.Nanosecond) // Ensure different timestamp
 	alias2 := generateCertificateAlias()
 
 	// Verify format

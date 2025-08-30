@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/truststore/cli/internal/service"
 	"github.com/truststore/cli/internal/store"
-	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/term"
 )
 
 // NewListCommand creates the list subcommand
@@ -249,7 +249,12 @@ func detectFileFormat(filepath string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to open file %s: %w", filepath, err)
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			// Log file close error but don't fail the operation
+			_ = err
+		}
+	}()
 
 	// Read first few bytes to detect format
 	header := make([]byte, 16)
@@ -286,14 +291,14 @@ func detectFileFormat(filepath string) (string, error) {
 // promptForPassword securely prompts the user for a password
 func promptForPassword() (string, error) {
 	// Check if stdin is a terminal
-	if !terminal.IsTerminal(int(syscall.Stdin)) {
+	if !term.IsTerminal(int(syscall.Stdin)) {
 		return "", fmt.Errorf("password prompt requires an interactive terminal")
 	}
 
 	fmt.Print("Enter password: ")
 
 	// Read password from terminal without echoing
-	passwordBytes, err := terminal.ReadPassword(int(syscall.Stdin))
+	passwordBytes, err := term.ReadPassword(int(syscall.Stdin))
 	if err != nil {
 		return "", err
 	}

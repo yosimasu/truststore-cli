@@ -40,6 +40,7 @@ func TestNewAddCommand(t *testing.T) {
 	targetPasswordFlag := cmd.Flags().Lookup("target-password")
 	if targetPasswordFlag == nil {
 		t.Error("Expected 'target-password' flag to exist")
+		return
 	}
 	if targetPasswordFlag.NoOptDefVal != "PROMPT" {
 		t.Errorf("Expected NoOptDefVal to be 'PROMPT', got '%s'", targetPasswordFlag.NoOptDefVal)
@@ -59,7 +60,7 @@ func TestValidateTargetPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	tests := []struct {
 		name      string
@@ -104,7 +105,7 @@ func TestValidateTargetPathWithExistingFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	// Create existing file
 	existingFile := filepath.Join(tempDir, "existing.pem")
@@ -194,7 +195,7 @@ func TestValidateSourceFilePath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	validFile := filepath.Join(tempDir, "valid.pem")
 	err = os.WriteFile(validFile, []byte("test content"), 0644)
@@ -250,7 +251,7 @@ func TestHandleDomainAddIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	// This test would require network access and is more of an integration test
 	// We'll skip it in unit tests but leave the structure for future integration testing
@@ -320,7 +321,7 @@ func TestReadCertificatesFromFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	// Generate test certificate for testing
 	cert, err := generateTestCertificate()
@@ -500,7 +501,7 @@ func TestAddCertificateToTargetPEM(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	// Generate a test certificate
 	cert, err := generateTestCertificate()

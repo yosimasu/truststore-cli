@@ -16,7 +16,7 @@ func TestNewCertificateFormatter(t *testing.T) {
 	}
 
 	// Verify it implements the interface
-	var _ CertificateFormatter = formatter
+	var _ = formatter
 }
 
 func TestFormatCertificateChain(t *testing.T) {

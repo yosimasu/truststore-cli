@@ -48,7 +48,7 @@ func TestChainServiceIntegration(t *testing.T) {
 		}
 		
 		// Demonstrate service interface usage
-		var service ChainService = chainService
+		var service = chainService
 		_, err = service.CompleteCertificateChain(testCert)
 		if err != nil {
 			t.Errorf("Interface usage failed: %v", err)
@@ -69,7 +69,7 @@ func TestServiceDependencyInjection(t *testing.T) {
 		chainService := NewChainService(mockClient)
 		
 		// Verify service can be used through interface
-		var service ChainService = chainService
+		var service = chainService
 		
 		// Test with mock certificate
 		testCert, err := createMockLeafCertificate()

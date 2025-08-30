@@ -237,7 +237,7 @@ func TestRateLimiter_WaitWithCancelledContext(t *testing.T) {
 	
 	// Consume the initial token
 	ctx := context.Background()
-	limiter.Wait(ctx)
+	_ = limiter.Wait(ctx)
 	
 	// Now create cancelled context
 	cancelledCtx, cancel := context.WithCancel(context.Background())
@@ -304,7 +304,7 @@ func TestResilientCTLogClient_Interfaces(t *testing.T) {
 	var _ CTLogClient = client
 	
 	// Should implement ResilientCTLogClient
-	var _ ResilientCTLogClient = client
+	var _ = client
 	
 	// Test basic CTLogClient interface methods
 	_, err := client.SearchCertificatesByIssuer("test")

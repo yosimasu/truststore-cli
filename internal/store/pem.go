@@ -93,7 +93,12 @@ func (h *PemHandler) AddCertificate(filepath string, cert *x509.Certificate, pas
 	if err != nil {
 		return fmt.Errorf("failed to open file %s: %w", filepath, err)
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			// Log file close error but don't fail the operation
+			_ = err
+		}
+	}()
 
 	// Write PEM data to file
 	_, err = file.Write(pemData)
@@ -161,7 +166,12 @@ func (h *PemHandler) writeCertificatesToFile(filepath string, certs []*x509.Cert
 	if err != nil {
 		return fmt.Errorf("failed to open file %s: %w", filepath, err)
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			// Log file close error but don't fail the operation
+			_ = err
+		}
+	}()
 
 	// Write each certificate as a PEM block
 	for _, cert := range certs {

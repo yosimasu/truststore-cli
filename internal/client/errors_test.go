@@ -127,7 +127,7 @@ func TestClassifyError_NetError(t *testing.T) {
 			name:      "temporary error",
 			netErr:    &temporaryError{},
 			wantType:  ErrorTypeNetwork,
-			retryable: true,
+			retryable: false, // Changed: temporary errors are no longer retryable, only timeout errors
 		},
 	}
 
@@ -301,7 +301,7 @@ func TestIsRetryable(t *testing.T) {
 		{
 			name:     "temporary net error",
 			err:      &temporaryError{},
-			expected: true,
+			expected: false, // Changed: temporary errors are no longer retryable, only timeout errors
 		},
 		{
 			name:     "timeout net error",

@@ -25,13 +25,14 @@ func (r *ResponseHandler) ReadJSONResponse(resp *http.Response, v interface{}) e
 		return NewValidationError("response is nil")
 	}
 
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check content type if validation is enabled
 	if r.validateJSON {
 		contentType := resp.Header.Get("Content-Type")
 		if contentType != "" && contentType != "application/json" && contentType != "text/plain" {
 			// Allow text/plain for some APIs that return JSON with wrong content-type
+			_ = contentType
 		}
 	}
 
@@ -60,7 +61,7 @@ func (r *ResponseHandler) ReadStringResponse(resp *http.Response) (string, error
 		return "", NewValidationError("response is nil")
 	}
 
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

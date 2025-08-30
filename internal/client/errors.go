@@ -126,7 +126,7 @@ func classifyNetError(netErr net.Error, url string) *HTTPError {
 		Message:   netErr.Error(),
 		Cause:     netErr,
 		URL:       url,
-		Retryable: netErr.Temporary(),
+		Retryable: netErr.Timeout(), // Focus on timeout errors as retryable
 	}
 
 	if netErr.Timeout() {
@@ -218,7 +218,7 @@ func IsRetryable(err error) bool {
 	
 	// For non-HTTPError types, check common patterns
 	if netErr, ok := err.(net.Error); ok {
-		return netErr.Temporary() || netErr.Timeout()
+		return netErr.Timeout() // Focus on timeout errors as primary retryable condition
 	}
 	
 	return false

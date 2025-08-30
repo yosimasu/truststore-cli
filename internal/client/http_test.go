@@ -50,7 +50,7 @@ func TestHTTPClient_Get_Success(t *testing.T) {
 	// Create test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("test response"))
+		_, _ = w.Write([]byte("test response"))
 	}))
 	defer server.Close()
 
@@ -59,7 +59,7 @@ func TestHTTPClient_Get_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", resp.StatusCode)
@@ -70,7 +70,7 @@ func TestHTTPClient_GetWithContext_Success(t *testing.T) {
 	// Create test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("test response"))
+		_, _ = w.Write([]byte("test response"))
 	}))
 	defer server.Close()
 
@@ -80,7 +80,7 @@ func TestHTTPClient_GetWithContext_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetWithContext failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", resp.StatusCode)
@@ -113,7 +113,7 @@ func TestHTTPClient_Retry_ServerErrors(t *testing.T) {
 			w.WriteHeader(http.StatusInternalServerError)
 		} else {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("success"))
+			_, _ = w.Write([]byte("success"))
 		}
 	}))
 	defer server.Close()
@@ -130,7 +130,7 @@ func TestHTTPClient_Retry_ServerErrors(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected success after retries, got error: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if attempts != 3 {
 		t.Errorf("Expected 3 attempts, got %d", attempts)
@@ -185,7 +185,7 @@ func TestHTTPClient_NoRetryFor4xxErrors(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected no error for 4xx status, got: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if attempts != 1 {
 		t.Errorf("Expected 1 attempt (no retry for 4xx), got %d", attempts)
