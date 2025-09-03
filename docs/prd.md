@@ -242,6 +242,30 @@ The project will require both unit tests for individual functions and integratio
 8.  Handles incorrect passwords and file write errors gracefully.
 9.  A loading indicator is displayed during certificate chain completion, validation, and truststore write operations.
 
+---
+
+#### **Story 2.5: Intelligent Self-Signed Certificate Addition**
+*As a security administrator,*  
+*I want the `add` command to automatically detect when the last certificate in a chain is self-signed and prompt me for confirmation,*  
+*So that I can make informed decisions about adding potentially risky self-signed certificates to my truststore.*
+
+**Acceptance Criteria:**
+
+**Functional Requirements:**
+1. When `add` command processes a certificate, the Certificate Chain Completion Service (Story 2.1) identifies if the final certificate is self-signed using the existing `isSelfSigned()` method.
+2. If self-signed certificate detected, display certificate details (subject, issuer, expiration, fingerprint) with clear security warning about self-signed certificate risks.
+3. Prompt user with "Self-signed certificate detected. Add to truststore? [y/N]" with secure default "No" requiring explicit confirmation.
+
+**Integration Requirements:**
+4. Existing `add` command functionality for all source types (remote servers, local files) continues to work unchanged.
+5. New functionality follows existing add command error handling, loading indicator, and user interaction patterns.
+6. Integration with Certificate Chain Completion Service maintains current chain completion behavior without modification.
+
+**Quality Requirements:**
+7. Add `--yes` flag to bypass interactive confirmation for automation scenarios and CI/CD pipelines.
+8. Security warning clearly explains risks of self-signed certificates and displays certificate fingerprint for verification.
+9. Audit logging captures self-signed certificate additions with source and target details for security compliance.
+
 ### Epic 3: Certificate Removal & Finalization
 
 **Goal:** This final epic completes the core functionality by implementing the `rm` (remove) command, which intelligently identifies a root certificate via a source and removes it from a target truststore. It also focuses on project finalization, including robust testing, comprehensive user documentation, and setting up an automated build and release process to deliver the cross-platform binaries.
