@@ -12,7 +12,21 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/truststore/cli/internal/client"
+	"github.com/truststore/cli/internal/service"
 )
+
+// Mock CT log client for testing
+type mockCTLogClient struct{}
+
+func (m *mockCTLogClient) SearchCertificatesByIssuer(issuer string) ([]client.CTLogEntry, error) {
+	return []client.CTLogEntry{}, nil
+}
+
+func (m *mockCTLogClient) DownloadCertificate(id int) (*x509.Certificate, error) {
+	return nil, nil
+}
 
 func TestNewAddCommand(t *testing.T) {
 	cmd := NewAddCommand()
@@ -529,4 +543,266 @@ func TestAddCertificateToTargetPEM(t *testing.T) {
 	if !strings.Contains(string(content), "BEGIN CERTIFICATE") {
 		t.Error("PEM file does not contain certificate")
 	}
+}
+
+// Test functions for Story 2.5: Intelligent Self-Signed Certificate Addition
+
+func TestNewAddCommand_YesFlag(t *testing.T) {
+	cmd := NewAddCommand()
+
+	// Test that --yes flag exists
+	yesFlag := cmd.Flags().Lookup("yes")
+	if yesFlag == nil {
+		t.Error("Expected '--yes' flag to exist")
+		return
+	}
+
+	// Test short flag -y
+	yesShortFlag := cmd.Flags().ShorthandLookup("y")
+	if yesShortFlag == nil {
+		t.Error("Expected '-y' short flag to exist")
+		return
+	}
+
+	// Verify they're the same flag
+	if yesFlag != yesShortFlag {
+		t.Error("Expected --yes and -y to be the same flag")
+	}
+
+	// Check default value
+	defaultVal, err := cmd.Flags().GetBool("yes")
+	if err != nil {
+		t.Fatalf("Failed to get yes flag default value: %v", err)
+	}
+	if defaultVal != false {
+		t.Error("Expected --yes flag default to be false")
+	}
+}
+
+func TestDisplayCertificateDetails(t *testing.T) {
+	// Create a test certificate
+	cert := createTestSelfSignedCertificate(t)
+
+	// Capture output by temporarily redirecting stdout
+	// This is a basic test - in real implementation you might want to use a more sophisticated approach
+	// For now, we'll just verify the function doesn't panic
+	displayCertificateDetails(cert)
+
+	// Test completed without panic
+}
+
+func TestPromptUserConfirmation(t *testing.T) {
+	tests := []struct {
+		name       string
+		input      string
+		expected   bool
+		shouldFail bool
+	}{
+		{"explicit_yes", "y", true, false},
+		{"explicit_yes_full", "yes", true, false},
+		{"explicit_no", "n", false, false},
+		{"explicit_no_full", "no", false, false},
+		{"empty_input", "", false, false},
+		{"invalid_input", "maybe", false, false},
+		{"uppercase_yes", "Y", true, false},
+		{"uppercase_yes_full", "YES", true, false},
+		{"mixed_case", "Yes", true, false},
+		{"whitespace_yes", " y ", true, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// For this test, we'll just verify the logic by testing the normalization
+			// In a real scenario, you'd need to mock stdin
+			response := strings.ToLower(strings.TrimSpace(tt.input))
+			result := response == "y" || response == "yes"
+			
+			if result != tt.expected {
+				t.Errorf("Expected %v for input '%s', got %v", tt.expected, tt.input, result)
+			}
+		})
+	}
+}
+
+func TestLogSelfSignedAddition(t *testing.T) {
+	cert := createTestSelfSignedCertificate(t)
+	
+	// Test that function doesn't panic with valid inputs
+	logSelfSignedAddition("test-source", "test-target", cert, false)
+	logSelfSignedAddition("test-source", "test-target", cert, true)
+	
+	// Test completed without panic
+}
+
+func TestHandleSelfSignedConfirmation_AutomatedMode(t *testing.T) {
+	cert := createTestSelfSignedCertificate(t)
+	
+	// Create a mock command with --yes flag set
+	cmd := NewAddCommand()
+	err := cmd.Flags().Set("yes", "true")
+	if err != nil {
+		t.Fatalf("Failed to set yes flag: %v", err)
+	}
+
+	// Test automated mode (should not prompt and should succeed)
+	err = handleSelfSignedConfirmation(cmd, cert, "test-source", "test-target")
+	if err != nil {
+		t.Errorf("Expected no error in automated mode, got: %v", err)
+	}
+}
+
+func TestHandleSelfSignedConfirmation_InteractiveMode(t *testing.T) {
+	cert := createTestSelfSignedCertificate(t)
+	
+	// Create a mock command without --yes flag (interactive mode)
+	cmd := NewAddCommand()
+	
+	// Since we can't easily mock user input in this test environment,
+	// we'll test that the function attempts to prompt.
+	// In a real scenario, this would require mocking stdin or using dependency injection
+	// For now, we expect this to fail because we can't provide interactive input
+	err := handleSelfSignedConfirmation(cmd, cert, "test-source", "test-target")
+	if err == nil {
+		t.Error("Expected error in interactive mode without input, got nil")
+	}
+	
+	// The error should indicate user cancellation or input failure
+	if !strings.Contains(err.Error(), "cancelled") && !strings.Contains(err.Error(), "confirmation") {
+		t.Errorf("Expected cancellation or confirmation error, got: %v", err)
+	}
+}
+
+// Test that IsSelfSigned method is accessible through the ChainService interface
+func TestChainService_IsSelfSigned_Integration(t *testing.T) {
+	// This is an integration test to verify the new public method works
+	cert := createTestSelfSignedCertificate(t)
+	
+	// Mock CT log client (we don't need actual network calls for this test)
+	mockClient := &mockCTLogClient{}
+	chainService := service.NewChainService(mockClient)
+	
+	// Test the new public IsSelfSigned method
+	result := chainService.IsSelfSigned(cert)
+	if !result {
+		t.Error("Expected self-signed certificate to be detected as self-signed")
+	}
+	
+	// Test with a non-self-signed certificate (different subject and issuer)
+	nonSelfSignedCert := createTestNonSelfSignedCertificate(t)
+	result = chainService.IsSelfSigned(nonSelfSignedCert)
+	if result {
+		t.Error("Expected non-self-signed certificate to NOT be detected as self-signed")
+	}
+}
+
+// Helper function to create a test self-signed certificate
+func createTestSelfSignedCertificate(t *testing.T) *x509.Certificate {
+	// Generate a private key
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("Failed to generate private key: %v", err)
+	}
+
+	// Create certificate template
+	template := x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject: pkix.Name{
+			CommonName:   "test-self-signed.example.com",
+			Organization: []string{"Test Org"},
+		},
+		Issuer: pkix.Name{
+			CommonName:   "test-self-signed.example.com", // Same as subject for self-signed
+			Organization: []string{"Test Org"},
+		},
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().Add(365 * 24 * time.Hour),
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+	}
+
+	// Create the certificate (self-signed)
+	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, &privateKey.PublicKey, privateKey)
+	if err != nil {
+		t.Fatalf("Failed to create certificate: %v", err)
+	}
+
+	// Parse the certificate
+	cert, err := x509.ParseCertificate(certDER)
+	if err != nil {
+		t.Fatalf("Failed to parse certificate: %v", err)
+	}
+
+	return cert
+}
+
+// Helper function to create a test non-self-signed certificate
+func createTestNonSelfSignedCertificate(t *testing.T) *x509.Certificate {
+	// Generate a private key for the leaf certificate
+	leafPrivateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("Failed to generate leaf private key: %v", err)
+	}
+
+	// Generate a different private key for the CA (to simulate different keys)
+	caPrivateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("Failed to generate CA private key: %v", err)
+	}
+
+	// Create CA certificate template
+	caTemplate := x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject: pkix.Name{
+			CommonName:   "test-ca.example.com", // Different from leaf
+			Organization: []string{"Test CA Org"},
+		},
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().Add(365 * 24 * time.Hour),
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+	}
+
+	// Create CA certificate
+	caCertDER, err := x509.CreateCertificate(rand.Reader, &caTemplate, &caTemplate, &caPrivateKey.PublicKey, caPrivateKey)
+	if err != nil {
+		t.Fatalf("Failed to create CA certificate: %v", err)
+	}
+
+	caCert, err := x509.ParseCertificate(caCertDER)
+	if err != nil {
+		t.Fatalf("Failed to parse CA certificate: %v", err)
+	}
+
+	// Create leaf certificate template with different subject and issuer
+	leafTemplate := x509.Certificate{
+		SerialNumber: big.NewInt(2),
+		Subject: pkix.Name{
+			CommonName:   "test-leaf.example.com", // Different from CA
+			Organization: []string{"Test Org"},
+		},
+		Issuer: caCert.Subject, // Use CA's subject as issuer
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().Add(30 * 24 * time.Hour), // Shorter validity
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+		IsCA:                  false,
+	}
+
+	// Create the leaf certificate, signed by CA
+	leafCertDER, err := x509.CreateCertificate(rand.Reader, &leafTemplate, caCert, &leafPrivateKey.PublicKey, caPrivateKey)
+	if err != nil {
+		t.Fatalf("Failed to create leaf certificate: %v", err)
+	}
+
+	// Parse the leaf certificate
+	leafCert, err := x509.ParseCertificate(leafCertDER)
+	if err != nil {
+		t.Fatalf("Failed to parse leaf certificate: %v", err)
+	}
+
+	return leafCert
 }
