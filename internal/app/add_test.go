@@ -425,11 +425,11 @@ func generateTestCertificate() (*x509.Certificate, error) {
 			StreetAddress: []string{""},
 			PostalCode:    []string{""},
 		},
-		NotBefore:    time.Now(),
-		NotAfter:     time.Now().Add(365 * 24 * time.Hour),
-		KeyUsage:     x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		IPAddresses:  nil,
+		NotBefore:   time.Now(),
+		NotAfter:    time.Now().Add(365 * 24 * time.Hour),
+		KeyUsage:    x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		IPAddresses: nil,
 	}
 
 	// Create certificate
@@ -539,12 +539,12 @@ func TestGetCertificateFingerprint(t *testing.T) {
 	}
 
 	fingerprint := getCertificateFingerprint(cert)
-	
+
 	// Check that fingerprint is a valid hex string of expected length (SHA-256 = 64 hex chars)
 	if len(fingerprint) != 64 {
 		t.Errorf("Expected fingerprint length 64, got %d", len(fingerprint))
 	}
-	
+
 	// Check that it's all uppercase hex
 	for _, char := range fingerprint {
 		if (char < '0' || char > '9') && (char < 'A' || char > 'F') {
@@ -557,7 +557,7 @@ func TestPromptForSelfSignedConfirmation(t *testing.T) {
 	// This test demonstrates the function signature and expected behavior
 	// In practice, this function requires interactive input so we can't easily test it
 	// without mocking stdin, but we can at least verify it exists and has the right signature
-	
+
 	// Just call the function to ensure it compiles and exists
 	// We can't test interactive behavior easily without mocking
 	_ = promptForSelfSignedConfirmation
@@ -597,12 +597,12 @@ func TestNewAddCommandWithYesFlag(t *testing.T) {
 		t.Error("Expected 'yes' flag to exist")
 		return
 	}
-	
+
 	// Test flag properties
 	if yesFlag.Shorthand != "y" {
 		t.Errorf("Expected shorthand 'y', got '%s'", yesFlag.Shorthand)
 	}
-	
+
 	// Test default value
 	defaultValue, err := cmd.Flags().GetBool("yes")
 	if err != nil {

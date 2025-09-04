@@ -100,20 +100,20 @@ func (r *ResponseHandler) CheckCommonHeaders(resp *http.Response) map[string]str
 	}
 
 	headers := make(map[string]string)
-	
+
 	// Check common headers
 	if contentType := resp.Header.Get("Content-Type"); contentType != "" {
 		headers["Content-Type"] = contentType
 	}
-	
+
 	if contentLength := resp.Header.Get("Content-Length"); contentLength != "" {
 		headers["Content-Length"] = contentLength
 	}
-	
+
 	if server := resp.Header.Get("Server"); server != "" {
 		headers["Server"] = server
 	}
-	
+
 	if cacheControl := resp.Header.Get("Cache-Control"); cacheControl != "" {
 		headers["Cache-Control"] = cacheControl
 	}

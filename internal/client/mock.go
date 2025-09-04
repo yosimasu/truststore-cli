@@ -23,9 +23,9 @@ type MockServerConfig struct {
 // MockServer provides enhanced mock server functionality for testing HTTP clients
 type MockServer struct {
 	*httptest.Server
-	config      MockServerConfig
+	config       MockServerConfig
 	requestCount int64
-	URL         string // Exposed URL for easy access
+	URL          string // Exposed URL for easy access
 }
 
 // Close closes the mock server
@@ -87,7 +87,7 @@ func (m *MockServer) ResetRequestCount() {
 // MockTimeoutServer creates a mock server that never responds (for timeout testing)
 func NewMockTimeoutServer() *MockServer {
 	mock := &MockServer{}
-	
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt64(&mock.requestCount, 1)
 		// Never write response to simulate timeout
@@ -102,7 +102,7 @@ func NewMockTimeoutServer() *MockServer {
 // MockNetworkErrorServer creates a server that immediately closes connections
 func NewMockNetworkErrorServer() *MockServer {
 	mock := &MockServer{}
-	
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt64(&mock.requestCount, 1)
 		// Force connection close to simulate network error
@@ -128,14 +128,13 @@ type CTLogMockServer struct {
 	*MockServer
 }
 
-
 // NewCTLogMockServer creates a mock server that simulates crt.sh API behavior
 func NewCTLogMockServer() *CTLogMockServer {
 	mock := &CTLogMockServer{}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query()
-		
+
 		// Handle certificate search requests
 		if query.Get("CN") != "" && query.Get("output") == "json" {
 			mock.handleSearchRequest(w, r)
@@ -162,7 +161,7 @@ func NewCTLogMockServer() *CTLogMockServer {
 
 func (m *CTLogMockServer) handleSearchRequest(w http.ResponseWriter, r *http.Request) {
 	cn := r.URL.Query().Get("CN")
-	
+
 	// Simulate different responses based on CN
 	switch cn {
 	case "example.org":
@@ -203,7 +202,7 @@ func (m *CTLogMockServer) handleSearchRequest(w http.ResponseWriter, r *http.Req
 
 func (m *CTLogMockServer) handleDownloadRequest(w http.ResponseWriter, r *http.Request) {
 	certID := r.URL.Query().Get("d")
-	
+
 	switch certID {
 	case "123456789", "987654321":
 		// Return valid certificate

@@ -11,15 +11,15 @@ import (
 
 func TestNewRmCommand(t *testing.T) {
 	cmd := NewRmCommand()
-	
+
 	if cmd.Name() != "rm" {
 		t.Errorf("Expected command name to be 'rm', got '%s'", cmd.Name())
 	}
-	
+
 	if cmd.Short == "" {
 		t.Error("Expected command to have a short description")
 	}
-	
+
 	if cmd.Long == "" {
 		t.Error("Expected command to have a long description")
 	}
@@ -27,19 +27,19 @@ func TestNewRmCommand(t *testing.T) {
 
 func TestRmCommandFlags(t *testing.T) {
 	cmd := NewRmCommand()
-	
+
 	// Test target flag
 	targetFlag := cmd.Flags().Lookup("target")
 	if targetFlag == nil {
 		t.Error("Expected 'target' flag to be defined")
 	}
-	
+
 	// Test password flag
 	passwordFlag := cmd.Flags().Lookup("password")
 	if passwordFlag == nil {
 		t.Error("Expected 'password' flag to be defined")
 	}
-	
+
 	// Test target-password flag
 	targetPasswordFlag := cmd.Flags().Lookup("target-password")
 	if targetPasswordFlag == nil {
@@ -108,40 +108,40 @@ func TestIsRmDomainSource(t *testing.T) {
 func TestValidateTargetFileExists(t *testing.T) {
 	// Create a temporary directory for testing
 	tempDir := t.TempDir()
-	
+
 	// Test with empty path
 	err := validateTargetFileExists("")
 	if err == nil {
 		t.Error("Expected error for empty target path")
 	}
-	
+
 	// Test with non-existent file
 	nonExistentFile := filepath.Join(tempDir, "nonexistent.pem")
 	err = validateTargetFileExists(nonExistentFile)
 	if err == nil {
 		t.Error("Expected error for non-existent file")
 	}
-	
+
 	// Create a test file
 	testFile := filepath.Join(tempDir, "test.pem")
 	err = os.WriteFile(testFile, []byte("test content"), 0644)
 	if err != nil {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
-	
+
 	// Test with existing file
 	err = validateTargetFileExists(testFile)
 	if err != nil {
 		t.Errorf("Expected no error for existing file, got: %v", err)
 	}
-	
+
 	// Create a directory to test non-regular file
 	testDir := filepath.Join(tempDir, "testdir")
 	err = os.Mkdir(testDir, 0755)
 	if err != nil {
 		t.Fatalf("Failed to create test directory: %v", err)
 	}
-	
+
 	// Test with directory (should fail)
 	err = validateTargetFileExists(testDir)
 	if err == nil {
@@ -152,9 +152,9 @@ func TestValidateTargetFileExists(t *testing.T) {
 func TestCertificatesEqual(t *testing.T) {
 	// Create two identical certificate structures with proper raw bytes
 	rawBytes := []byte{0x30, 0x82, 0x01, 0x02} // Minimal DER encoding
-	
+
 	cert1 := &x509.Certificate{
-		Raw: rawBytes,
+		Raw:          rawBytes,
 		SerialNumber: big.NewInt(123),
 		Issuer: pkix.Name{
 			CommonName: "Test CA",
@@ -163,9 +163,9 @@ func TestCertificatesEqual(t *testing.T) {
 			CommonName: "Test Subject",
 		},
 	}
-	
+
 	cert2 := &x509.Certificate{
-		Raw: rawBytes, // Same raw bytes
+		Raw:          rawBytes, // Same raw bytes
 		SerialNumber: big.NewInt(123),
 		Issuer: pkix.Name{
 			CommonName: "Test CA",
@@ -174,15 +174,15 @@ func TestCertificatesEqual(t *testing.T) {
 			CommonName: "Test Subject",
 		},
 	}
-	
+
 	// Test equal certificates (same raw content)
 	if !certificatesEqual(cert1, cert2) {
 		t.Error("Expected certificates with same raw content to be equal")
 	}
-	
+
 	// Create a certificate with different raw bytes
 	cert3 := &x509.Certificate{
-		Raw: []byte{0x30, 0x82, 0x01, 0x03}, // Different raw bytes
+		Raw:          []byte{0x30, 0x82, 0x01, 0x03}, // Different raw bytes
 		SerialNumber: big.NewInt(123),
 		Issuer: pkix.Name{
 			CommonName: "Test CA",
@@ -191,13 +191,12 @@ func TestCertificatesEqual(t *testing.T) {
 			CommonName: "Test Subject",
 		},
 	}
-	
+
 	// Test unequal certificates (different raw content)
 	if certificatesEqual(cert1, cert3) {
 		t.Error("Expected certificates with different raw content to be unequal")
 	}
 }
-
 
 func TestPrintRemovalSuccessMessage(t *testing.T) {
 	// This test mainly ensures the function doesn't panic
@@ -208,14 +207,14 @@ func TestPrintRemovalSuccessMessage(t *testing.T) {
 			CommonName: "Test Certificate",
 		},
 	}
-	
+
 	// Test with different file types
 	testCases := []string{
 		"test.pem",
 		"test.jks",
 		"test.p12",
 	}
-	
+
 	for _, target := range testCases {
 		// This should not panic
 		printRemovalSuccessMessage(target, cert)

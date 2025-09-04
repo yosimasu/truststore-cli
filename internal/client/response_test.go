@@ -72,7 +72,7 @@ func TestResponseHandler_ReadJSONResponse(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			err := handler.ReadJSONResponse(test.resp, test.target)
-			
+
 			if test.wantError {
 				if err == nil {
 					t.Fatal("Expected error but got none")
@@ -140,7 +140,7 @@ func TestResponseHandler_ReadStringResponse(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			result, err := handler.ReadStringResponse(test.resp)
-			
+
 			if test.wantError {
 				if err == nil {
 					t.Fatal("Expected error but got none")
@@ -218,7 +218,7 @@ func TestResponseHandler_ValidateStatusCode(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			err := handler.ValidateStatusCode(test.resp, test.expectedCodes...)
-			
+
 			if test.wantError {
 				if err == nil {
 					t.Fatal("Expected error but got none")
@@ -284,14 +284,14 @@ func TestResponseHandler_CheckCommonHeaders(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			result := handler.CheckCommonHeaders(test.resp)
-			
+
 			if test.expected == nil {
 				if result != nil {
 					t.Errorf("Expected nil, got %v", result)
 				}
 				return
 			}
-			
+
 			for key, expectedValue := range test.expected {
 				if actualValue, exists := result[key]; !exists || actualValue != expectedValue {
 					t.Errorf("Expected %s=%q, got %s=%q", key, expectedValue, key, actualValue)
@@ -358,7 +358,7 @@ func TestResponseHandler_ProcessResponse(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			err := handler.ProcessResponse(test.resp, test.target, test.expectedCodes...)
-			
+
 			if test.wantError {
 				if err == nil {
 					t.Fatal("Expected error but got none")
@@ -376,4 +376,3 @@ func TestResponseHandler_ProcessResponse(t *testing.T) {
 		})
 	}
 }
-

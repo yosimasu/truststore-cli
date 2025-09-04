@@ -109,7 +109,6 @@ func TestClassifyError_ExistingHTTPError(t *testing.T) {
 	}
 }
 
-
 func TestClassifyError_NetError(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -267,7 +266,7 @@ func TestNewValidationError(t *testing.T) {
 func TestNewParsingError(t *testing.T) {
 	cause := errors.New("json decode error")
 	err := NewParsingError("failed to parse response", cause)
-	
+
 	if err.Type != ErrorTypeParsing {
 		t.Errorf("Expected type %v, got %v", ErrorTypeParsing, err.Type)
 	}

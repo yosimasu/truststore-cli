@@ -485,7 +485,7 @@ func readCertificatesFromFile(sourcePath string) ([]*x509.Certificate, error) {
 func getTargetPassword(cmd *cobra.Command, target string) (string, error) {
 	// Determine target file type
 	targetType := getTargetFileType(target)
-	
+
 	// PEM files don't need passwords
 	if targetType == "pem" {
 		return "", nil
@@ -504,7 +504,7 @@ func getTargetPassword(cmd *cobra.Command, target string) (string, error) {
 
 	// Get password value
 	password, _ := cmd.Flags().GetString("target-password")
-	
+
 	// If password is empty string or "PROMPT", it means flag was provided without value - prompt interactively
 	if password == "" || password == "PROMPT" {
 		fmt.Printf("Enter password for target %s file: ", targetType)
@@ -540,7 +540,7 @@ func getTargetFileType(target string) string {
 // addCertificateToTarget adds a certificate to the target file using the appropriate handler
 func addCertificateToTarget(target string, cert *x509.Certificate, password string) error {
 	targetType := getTargetFileType(target)
-	
+
 	switch targetType {
 	case "pem":
 		pemHandler := store.NewPemHandler()
@@ -559,11 +559,11 @@ func addCertificateToTarget(target string, cert *x509.Certificate, password stri
 // printEnhancedSuccessMessage prints formatted success message with enhanced information
 func printEnhancedSuccessMessage(target string, cert *x509.Certificate) {
 	targetType := getTargetFileType(target)
-	
+
 	fmt.Printf("Successfully added root certificate to %s\n", target)
 	fmt.Printf("Certificate Subject: %s\n", cert.Subject.String())
 	fmt.Printf("Serial Number: %s\n", cert.SerialNumber.String())
-	
+
 	// Include format-specific information
 	switch targetType {
 	case "jks":
@@ -579,7 +579,7 @@ func printEnhancedSuccessMessage(target string, cert *x509.Certificate) {
 func getSourcePassword(cmd *cobra.Command, source string) (string, error) {
 	// Determine source file type
 	sourceType := getTargetFileType(source) // Reuse the same function
-	
+
 	// PEM files don't need passwords
 	if sourceType == "pem" {
 		return "", nil
@@ -598,7 +598,7 @@ func getSourcePassword(cmd *cobra.Command, source string) (string, error) {
 
 	// Get password value
 	password, _ := cmd.Flags().GetString("password")
-	
+
 	// If password is empty string or "PROMPT", it means flag was provided without value - prompt interactively
 	if password == "" || password == "PROMPT" {
 		fmt.Printf("Enter password for source %s file: ", sourceType)
@@ -621,7 +621,7 @@ func getSourcePassword(cmd *cobra.Command, source string) (string, error) {
 // readCertificatesFromSourceFile reads certificates from any supported source file type
 func readCertificatesFromSourceFile(sourcePath, password string) ([]*x509.Certificate, error) {
 	sourceType := getTargetFileType(sourcePath) // Reuse the same function
-	
+
 	switch sourceType {
 	case "pem":
 		return readCertificatesFromFile(sourcePath) // Use existing PEM reader
@@ -678,7 +678,7 @@ func displayCertificateDetails(cert *x509.Certificate) {
 	fmt.Printf("Self-signed certificates are not verified by a trusted Certificate Authority.\n")
 	fmt.Printf("Adding them to your truststore may expose you to security risks.\n")
 	fmt.Printf("Only proceed if you trust the certificate source.\n\n")
-	
+
 	fmt.Printf("Certificate Details:\n")
 	fmt.Printf("  Subject:     %s\n", cert.Subject.String())
 	fmt.Printf("  Issuer:      %s\n", cert.Issuer.String())
@@ -697,7 +697,7 @@ func getCertificateFingerprint(cert *x509.Certificate) string {
 // promptForSelfSignedConfirmation prompts user for confirmation with secure default
 func promptForSelfSignedConfirmation() (bool, error) {
 	fmt.Printf("Self-signed certificate detected. Add to truststore? [y/N]: ")
-	
+
 	var response string
 	_, err := fmt.Scanln(&response)
 	if err != nil {
@@ -705,9 +705,9 @@ func promptForSelfSignedConfirmation() (bool, error) {
 		response = ""
 	}
 
-	// Normalize response 
+	// Normalize response
 	response = strings.ToLower(strings.TrimSpace(response))
-	
+
 	// Only "y" or "yes" are accepted as confirmation
 	return response == "y" || response == "yes", nil
 }
@@ -718,7 +718,7 @@ func logSelfSignedAddition(source string, cert *x509.Certificate, automated bool
 	if automated {
 		mode = "automated"
 	}
-	
-	log.Printf("AUDIT: Self-signed certificate added [%s] - Source: %s, Subject: %s, Fingerprint: %s", 
+
+	log.Printf("AUDIT: Self-signed certificate added [%s] - Source: %s, Subject: %s, Fingerprint: %s",
 		mode, source, cert.Subject.String(), getCertificateFingerprint(cert))
 }

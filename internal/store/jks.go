@@ -107,7 +107,7 @@ func (h *JksHandler) AddCertificate(filepath string, cert *x509.Certificate, pas
 		if err != nil {
 			return fmt.Errorf("failed to open JKS file %s: %w", filepath, err)
 		}
-		
+
 		err = ks.Load(file, []byte(password))
 		if err := file.Close(); err != nil {
 			// Log file close error but don't fail

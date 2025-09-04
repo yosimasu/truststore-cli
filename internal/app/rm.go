@@ -346,7 +346,7 @@ func validateTargetFileExists(target string) error {
 // readCertificatesFromTargetFile reads certificates from target file using appropriate handler
 func readCertificatesFromTargetFile(target, password string) ([]*x509.Certificate, error) {
 	targetType := getTargetFileType(target)
-	
+
 	switch targetType {
 	case "pem":
 		pemHandler := store.NewPemHandler()
@@ -365,7 +365,7 @@ func readCertificatesFromTargetFile(target, password string) ([]*x509.Certificat
 // removeCertificateFromTarget removes a certificate from the target file using the appropriate handler
 func removeCertificateFromTarget(target string, cert *x509.Certificate, password string) error {
 	targetType := getTargetFileType(target)
-	
+
 	switch targetType {
 	case "pem":
 		pemHandler := store.NewPemHandler()
@@ -392,11 +392,11 @@ func certificatesEqual(cert1, cert2 *x509.Certificate) bool {
 // printRemovalSuccessMessage prints formatted success message for certificate removal
 func printRemovalSuccessMessage(target string, cert *x509.Certificate) {
 	targetType := getTargetFileType(target)
-	
+
 	fmt.Printf("Successfully removed root certificate from %s\n", target)
 	fmt.Printf("Certificate Subject: %s\n", cert.Subject.String())
 	fmt.Printf("Serial Number: %s\n", cert.SerialNumber.String())
-	
+
 	// Include format-specific information
 	switch targetType {
 	case "jks":

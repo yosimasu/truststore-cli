@@ -29,12 +29,12 @@ func (e *cacheEntry) isExpired() bool {
 
 // memoryCache implements Cache using in-memory storage with TTL
 type memoryCache struct {
-	mu             sync.RWMutex
-	searchEntries  map[string]*cacheEntry
-	certEntries    map[int]*cacheEntry
-	stats          CacheStats
-	cleanupTicker  *time.Ticker
-	done           chan bool
+	mu            sync.RWMutex
+	searchEntries map[string]*cacheEntry
+	certEntries   map[int]*cacheEntry
+	stats         CacheStats
+	cleanupTicker *time.Ticker
+	done          chan bool
 }
 
 // NewMemoryCache creates a new memory-based cache with automatic cleanup
@@ -44,17 +44,17 @@ func NewMemoryCache() Cache {
 		certEntries:   make(map[int]*cacheEntry),
 		done:          make(chan bool),
 	}
-	
+
 	// Start cleanup goroutine
 	cache.startCleanup()
-	
+
 	return cache
 }
 
 // startCleanup starts the background cleanup goroutine
 func (c *memoryCache) startCleanup() {
 	c.cleanupTicker = time.NewTicker(5 * time.Minute)
-	
+
 	go func() {
 		for {
 			select {
@@ -71,23 +71,23 @@ func (c *memoryCache) startCleanup() {
 func (c *memoryCache) cleanup() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	now := time.Now()
-	
+
 	// Clean up search entries
 	for key, entry := range c.searchEntries {
 		if entry.isExpired() {
 			delete(c.searchEntries, key)
 		}
 	}
-	
+
 	// Clean up certificate entries
 	for key, entry := range c.certEntries {
 		if entry.isExpired() {
 			delete(c.certEntries, key)
 		}
 	}
-	
+
 	c.stats.LastCleanup = now
 }
 
@@ -103,18 +103,18 @@ func (c *memoryCache) Close() {
 func (c *memoryCache) GetSearchResults(issuer string) ([]CTLogEntry, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	
+
 	entry, exists := c.searchEntries[issuer]
 	if !exists || entry.isExpired() {
 		c.stats.Misses++
 		return nil, false
 	}
-	
+
 	c.stats.Hits++
 	if results, ok := entry.value.([]CTLogEntry); ok {
 		return results, true
 	}
-	
+
 	// Invalid entry type, remove it
 	delete(c.searchEntries, issuer)
 	return nil, false
@@ -124,7 +124,7 @@ func (c *memoryCache) GetSearchResults(issuer string) ([]CTLogEntry, bool) {
 func (c *memoryCache) SetSearchResults(issuer string, entries []CTLogEntry, ttl time.Duration) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	c.searchEntries[issuer] = &cacheEntry{
 		value:     entries,
 		expiresAt: time.Now().Add(ttl),
@@ -135,18 +135,18 @@ func (c *memoryCache) SetSearchResults(issuer string, entries []CTLogEntry, ttl 
 func (c *memoryCache) GetCertificate(id int) (*x509.Certificate, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	
+
 	entry, exists := c.certEntries[id]
 	if !exists || entry.isExpired() {
 		c.stats.Misses++
 		return nil, false
 	}
-	
+
 	c.stats.Hits++
 	if cert, ok := entry.value.(*x509.Certificate); ok {
 		return cert, true
 	}
-	
+
 	// Invalid entry type, remove it
 	delete(c.certEntries, id)
 	return nil, false
@@ -156,7 +156,7 @@ func (c *memoryCache) GetCertificate(id int) (*x509.Certificate, bool) {
 func (c *memoryCache) SetCertificate(id int, cert *x509.Certificate, ttl time.Duration) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	c.certEntries[id] = &cacheEntry{
 		value:     cert,
 		expiresAt: time.Now().Add(ttl),
@@ -167,7 +167,7 @@ func (c *memoryCache) SetCertificate(id int, cert *x509.Certificate, ttl time.Du
 func (c *memoryCache) Clear() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	c.searchEntries = make(map[string]*cacheEntry)
 	c.certEntries = make(map[int]*cacheEntry)
 	c.stats = CacheStats{}
@@ -177,7 +177,7 @@ func (c *memoryCache) Clear() {
 func (c *memoryCache) Size() int {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	
+
 	return len(c.searchEntries) + len(c.certEntries)
 }
 
@@ -185,7 +185,7 @@ func (c *memoryCache) Size() int {
 func (c *memoryCache) GetStats() CacheStats {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	
+
 	stats := c.stats
 	stats.Entries = len(c.searchEntries) + len(c.certEntries)
 	return stats
@@ -193,10 +193,10 @@ func (c *memoryCache) GetStats() CacheStats {
 
 // cachedCTLogClient wraps a CTLogClient with caching capabilities
 type cachedCTLogClient struct {
-	client     CTLogClient
-	cache      Cache
-	searchTTL  time.Duration
-	certTTL    time.Duration
+	client    CTLogClient
+	cache     Cache
+	searchTTL time.Duration
+	certTTL   time.Duration
 }
 
 // NewCachedCTLogClient creates a cached CT log client wrapper
@@ -227,16 +227,16 @@ func (c *cachedCTLogClient) SearchCertificatesByIssuer(issuerName string) ([]CTL
 	if entries, found := c.cache.GetSearchResults(issuerName); found {
 		return entries, nil
 	}
-	
+
 	// Cache miss, fetch from underlying client
 	entries, err := c.client.SearchCertificatesByIssuer(issuerName)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Cache the results
 	c.cache.SetSearchResults(issuerName, entries, c.searchTTL)
-	
+
 	return entries, nil
 }
 
@@ -246,15 +246,15 @@ func (c *cachedCTLogClient) DownloadCertificate(id int) (*x509.Certificate, erro
 	if cert, found := c.cache.GetCertificate(id); found {
 		return cert, nil
 	}
-	
+
 	// Cache miss, fetch from underlying client
 	cert, err := c.client.DownloadCertificate(id)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Cache the certificate
 	c.cache.SetCertificate(id, cert, c.certTTL)
-	
+
 	return cert, nil
 }

@@ -61,7 +61,7 @@ func (c *httpClient) Get(url string) (*http.Response, error) {
 // GetWithContext performs a GET request with context and retry logic
 func (c *httpClient) GetWithContext(ctx context.Context, url string) (*http.Response, error) {
 	var lastErr error
-	
+
 	for attempt := 0; attempt <= c.config.MaxRetries; attempt++ {
 		if attempt > 0 {
 			// Calculate exponential backoff delay
