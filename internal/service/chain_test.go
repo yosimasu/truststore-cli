@@ -655,3 +655,253 @@ func TestCompleteCertificateChain_CycleDetection(t *testing.T) {
 		t.Errorf("Chain too long, cycle detection may have failed: %d", len(chain))
 	}
 }
+
+// Tests for FindRootCertificate function
+func TestFindRootCertificate_EmptyChain(t *testing.T) {
+	service := &chainService{}
+	
+	result := service.FindRootCertificate([]*x509.Certificate{})
+	if result != nil {
+		t.Error("Expected nil for empty chain")
+	}
+}
+
+func TestFindRootCertificate_SingleCertificate(t *testing.T) {
+	service := &chainService{}
+	
+	// Create a single certificate
+	subject := pkix.Name{CommonName: "Test Cert"}
+	cert, _, err := createTestCertificate(subject, subject, true, nil, nil)
+	if err != nil {
+		t.Fatalf("Failed to create test certificate: %v", err)
+	}
+	
+	chain := []*x509.Certificate{cert}
+	result := service.FindRootCertificate(chain)
+	
+	if result != cert {
+		t.Error("Expected the single certificate to be returned")
+	}
+}
+
+func TestFindRootCertificate_SelfSignedRoot(t *testing.T) {
+	service := &chainService{}
+	
+	// Create a chain: Root -> Intermediate -> Leaf
+	rootSubject := pkix.Name{CommonName: "Root CA"}
+	rootCert, rootKey, err := createTestCertificate(rootSubject, rootSubject, true, nil, nil)
+	if err != nil {
+		t.Fatalf("Failed to create root certificate: %v", err)
+	}
+	
+	intermSubject := pkix.Name{CommonName: "Intermediate CA"}
+	intermCert, intermKey, err := createTestCertificate(intermSubject, rootSubject, true, rootCert, rootKey)
+	if err != nil {
+		t.Fatalf("Failed to create intermediate certificate: %v", err)
+	}
+	
+	leafSubject := pkix.Name{CommonName: "example.com"}
+	leafCert, _, err := createTestCertificate(leafSubject, intermSubject, false, intermCert, intermKey)
+	if err != nil {
+		t.Fatalf("Failed to create leaf certificate: %v", err)
+	}
+	
+	chain := []*x509.Certificate{leafCert, intermCert, rootCert}
+	result := service.FindRootCertificate(chain)
+	
+	if result != rootCert {
+		t.Errorf("Expected root certificate to be selected, got %s", result.Subject.CommonName)
+	}
+}
+
+func TestFindRootCertificate_NoSelfSignedFallback(t *testing.T) {
+	service := &chainService{}
+	
+	// Create a chain with no self-signed certificates (incomplete chain)
+	// All certificates are CA-signed but the actual root is missing
+	rootSubject := pkix.Name{CommonName: "Missing Root CA"}
+	rootCert, rootKey, err := createTestCertificate(rootSubject, rootSubject, true, nil, nil)
+	if err != nil {
+		t.Fatalf("Failed to create root certificate: %v", err)
+	}
+	
+	// Create intermediate signed by the root
+	intermSubject := pkix.Name{CommonName: "Intermediate CA"}
+	intermCert, intermKey, err := createTestCertificate(intermSubject, rootSubject, true, rootCert, rootKey)
+	if err != nil {
+		t.Fatalf("Failed to create intermediate certificate: %v", err)
+	}
+	
+	// Create leaf signed by intermediate
+	leafSubject := pkix.Name{CommonName: "example.com"}
+	leafCert, _, err := createTestCertificate(leafSubject, intermSubject, false, intermCert, intermKey)
+	if err != nil {
+		t.Fatalf("Failed to create leaf certificate: %v", err)
+	}
+	
+	// Only include intermediate and leaf in chain (missing root)
+	chain := []*x509.Certificate{leafCert, intermCert}
+	result := service.FindRootCertificate(chain)
+	
+	// Should select intermediate CA as it can verify the leaf and has CA capabilities
+	if result != intermCert {
+		t.Errorf("Expected intermediate certificate to be selected as fallback root, got %s", result.Subject.CommonName)
+	}
+}
+
+func TestFindRootCertificate_MultipleSelfSigned(t *testing.T) {
+	service := &chainService{}
+	
+	// Create two self-signed certificates with different validity periods
+	subject1 := pkix.Name{CommonName: "Root CA 1"}
+	shortValidityCert, _, err := createTestCertificate(subject1, subject1, true, nil, nil)
+	if err != nil {
+		t.Fatalf("Failed to create short validity certificate: %v", err)
+	}
+	
+	// Modify the certificate to have a longer validity period
+	subject2 := pkix.Name{CommonName: "Root CA 2"}
+	longValidityCert, _, err := createLongValidityCertificate(subject2, subject2, true, nil, nil)
+	if err != nil {
+		t.Fatalf("Failed to create long validity certificate: %v", err)
+	}
+	
+	chain := []*x509.Certificate{shortValidityCert, longValidityCert}
+	result := service.FindRootCertificate(chain)
+	
+	// Should select the one with longer validity period as tie-breaker
+	if result != longValidityCert {
+		t.Errorf("Expected certificate with longer validity to be selected, got %s", result.Subject.CommonName)
+	}
+}
+
+func TestFindRootCertificate_VerificationCount(t *testing.T) {
+	service := &chainService{}
+	
+	// Create a complex chain with cross-signing
+	rootSubject1 := pkix.Name{CommonName: "Root CA 1"}
+	rootCert1, rootKey1, err := createTestCertificate(rootSubject1, rootSubject1, true, nil, nil)
+	if err != nil {
+		t.Fatalf("Failed to create root certificate 1: %v", err)
+	}
+	
+	rootSubject2 := pkix.Name{CommonName: "Root CA 2"}
+	rootCert2, _, err := createTestCertificate(rootSubject2, rootSubject2, true, nil, nil)
+	if err != nil {
+		t.Fatalf("Failed to create root certificate 2: %v", err)
+	}
+	
+	// Create intermediate signed by root1
+	intermSubject := pkix.Name{CommonName: "Intermediate CA"}
+	intermCert, intermKey, err := createTestCertificate(intermSubject, rootSubject1, true, rootCert1, rootKey1)
+	if err != nil {
+		t.Fatalf("Failed to create intermediate certificate: %v", err)
+	}
+	
+	// Create leaf signed by intermediate
+	leafSubject := pkix.Name{CommonName: "example.com"}
+	leafCert, _, err := createTestCertificate(leafSubject, intermSubject, false, intermCert, intermKey)
+	if err != nil {
+		t.Fatalf("Failed to create leaf certificate: %v", err)
+	}
+	
+	// Root1 can verify intermediate, intermediate can verify leaf
+	// Root2 is isolated and can't verify anything in this chain
+	chain := []*x509.Certificate{leafCert, intermCert, rootCert1, rootCert2}
+	result := service.FindRootCertificate(chain)
+	
+	// Should select rootCert1 as it can verify more certificates in the chain
+	if result != rootCert1 {
+		t.Errorf("Expected root certificate 1 to be selected (can verify more certs), got %s", result.Subject.CommonName)
+	}
+}
+
+func TestCountVerifiableCertificates(t *testing.T) {
+	service := &chainService{}
+	
+	// Create a simple chain: Root -> Intermediate -> Leaf
+	rootSubject := pkix.Name{CommonName: "Root CA"}
+	rootCert, rootKey, err := createTestCertificate(rootSubject, rootSubject, true, nil, nil)
+	if err != nil {
+		t.Fatalf("Failed to create root certificate: %v", err)
+	}
+	
+	intermSubject := pkix.Name{CommonName: "Intermediate CA"}
+	intermCert, intermKey, err := createTestCertificate(intermSubject, rootSubject, true, rootCert, rootKey)
+	if err != nil {
+		t.Fatalf("Failed to create intermediate certificate: %v", err)
+	}
+	
+	leafSubject := pkix.Name{CommonName: "example.com"}
+	leafCert, _, err := createTestCertificate(leafSubject, intermSubject, false, intermCert, intermKey)
+	if err != nil {
+		t.Fatalf("Failed to create leaf certificate: %v", err)
+	}
+	
+	chain := []*x509.Certificate{leafCert, intermCert, rootCert}
+	
+	// Root should be able to verify intermediate (1 cert)
+	rootCount := service.countVerifiableCertificates(rootCert, chain)
+	if rootCount != 1 {
+		t.Errorf("Expected root to verify 1 certificate, got %d", rootCount)
+	}
+	
+	// Intermediate should be able to verify leaf (1 cert)
+	intermCount := service.countVerifiableCertificates(intermCert, chain)
+	if intermCount != 1 {
+		t.Errorf("Expected intermediate to verify 1 certificate, got %d", intermCount)
+	}
+	
+	// Leaf should not be able to verify any certificates (0 certs)
+	leafCount := service.countVerifiableCertificates(leafCert, chain)
+	if leafCount != 0 {
+		t.Errorf("Expected leaf to verify 0 certificates, got %d", leafCount)
+	}
+}
+
+// Helper function to create test certificate with longer validity period
+func createLongValidityCertificate(subject, issuer pkix.Name, isCA bool, parent *x509.Certificate, parentKey *rsa.PrivateKey) (*x509.Certificate, *rsa.PrivateKey, error) {
+	// Generate key pair
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Create certificate template with longer validity (2 years instead of 1)
+	template := x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      subject,
+		Issuer:       issuer,
+		NotBefore:    time.Now(),
+		NotAfter:     time.Now().Add(2 * 365 * 24 * time.Hour), // 2 years
+		KeyUsage:     x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		IsCA:         isCA,
+	}
+
+	if isCA {
+		template.BasicConstraintsValid = true
+		template.KeyUsage |= x509.KeyUsageCertSign
+	}
+
+	// Self-signed if no parent provided
+	signingCert := &template
+	signingKey := privateKey
+	if parent != nil && parentKey != nil {
+		signingCert = parent
+		signingKey = parentKey
+	}
+
+	// Create certificate
+	certDER, err := x509.CreateCertificate(rand.Reader, &template, signingCert, &privateKey.PublicKey, signingKey)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Parse certificate
+	cert, err := x509.ParseCertificate(certDER)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return cert, privateKey, nil
+}

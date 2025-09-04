@@ -29,6 +29,7 @@
 │   ├── service/
 │   │   ├── truststore.go     # Truststore Service orchestrator
 │   │   ├── chain.go          # Certificate Chain Completion Service
+│   │   ├── tls.go            # TLS Service for certificate retrieval
 │   │   ├── detector.go       # Certificate Type Detector
 │   │   ├── selector.go       # Root Certificate Selector
 │   │   └── monitor.go        # Performance Monitor

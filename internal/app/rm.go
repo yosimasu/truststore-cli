@@ -182,8 +182,8 @@ func handleDomainRm(domain, target, targetPassword string) error {
 		return fmt.Errorf("no certificates found in chain")
 	}
 
-	// Get the root certificate (last in chain)
-	rootCert := chain[len(chain)-1]
+	// Get the root certificate using proper root selection algorithm
+	rootCert := chainService.FindRootCertificate(chain)
 
 	// Search and remove root certificate from target file
 	return searchAndRemoveCertificate(target, rootCert, targetPassword)
@@ -233,8 +233,8 @@ func handleFileRm(sourcePath, target, sourcePassword, targetPassword string) err
 		return fmt.Errorf("no certificates found in chain")
 	}
 
-	// Get the root certificate (last in chain)
-	rootCert := chain[len(chain)-1]
+	// Get the root certificate using proper root selection algorithm
+	rootCert := chainService.FindRootCertificate(chain)
 
 	// Search and remove root certificate from target file
 	return searchAndRemoveCertificate(target, rootCert, targetPassword)

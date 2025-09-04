@@ -15,3 +15,4 @@ N/A. The project will be built from scratch using Go (Golang), as specified in t
 | :--- | :--- | :--- | :--- |
 | 2025-08-26 | 1.0 | Initial architecture draft | Winston (Architect) |
 | 2025-09-04 | 1.1 | Updated for Epic 4: CT Log Service Optimization with certificate type detection and conditional processing | Winston (Architect) |
+| 2025-09-04 | 1.2 | Enhanced certificate chain completion with optimized existing chain processing and improved TLS certificate retrieval | Winston (Architect) |

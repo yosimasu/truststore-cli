@@ -1,6 +1,7 @@
 package app
 
 import (
+	"crypto/x509"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -8,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/spf13/cobra"
+	"github.com/truststore/cli/internal/client"
 	"github.com/truststore/cli/internal/service"
 	"github.com/truststore/cli/internal/store"
 	"golang.org/x/term"
@@ -170,11 +172,30 @@ func handlePemFile(filepath string) error {
 	// Create PEM handler and formatter service
 	pemHandler := store.NewPemHandler()
 	formatter := service.NewCertificateFormatter()
+	ctLogClient := client.NewCTLogClient()
+	chainService := service.NewChainService(ctLogClient)
 
 	// Read certificates from PEM file
 	certificates, err := pemHandler.ReadCertificates(filepath, "")
 	if err != nil {
 		return fmt.Errorf("failed to read certificates from PEM file %s: %w", filepath, err)
+	}
+
+	// If we have certificates, complete the chain and find the root
+	if len(certificates) > 0 {
+		// Build complete certificate chain starting from the first certificate
+		completedChain, err := chainService.CompleteCertificateChain(certificates[0])
+		if err != nil {
+			// If chain completion fails, fall back to using certificates as-is
+			completedChain = certificates
+		}
+		
+		// Find the actual root certificate
+		rootCert := chainService.FindRootCertificate(completedChain)
+		if rootCert != nil {
+			// Display just the root certificate
+			certificates = []*x509.Certificate{rootCert}
+		}
 	}
 
 	// Format and display certificates
@@ -189,11 +210,30 @@ func handleJksFile(filepath, password string) error {
 	// Create JKS handler and formatter service
 	jksHandler := store.NewJksHandler()
 	formatter := service.NewCertificateFormatter()
+	ctLogClient := client.NewCTLogClient()
+	chainService := service.NewChainService(ctLogClient)
 
 	// Read certificates from JKS file
 	certificates, err := jksHandler.ReadCertificates(filepath, password)
 	if err != nil {
 		return fmt.Errorf("failed to read certificates from JKS file %s: %w", filepath, err)
+	}
+
+	// If we have certificates, complete the chain and find the root
+	if len(certificates) > 0 {
+		// Build complete certificate chain starting from the first certificate
+		completedChain, err := chainService.CompleteCertificateChain(certificates[0])
+		if err != nil {
+			// If chain completion fails, fall back to using certificates as-is
+			completedChain = certificates
+		}
+		
+		// Find the actual root certificate
+		rootCert := chainService.FindRootCertificate(completedChain)
+		if rootCert != nil {
+			// Display just the root certificate
+			certificates = []*x509.Certificate{rootCert}
+		}
 	}
 
 	// Format and display certificates
@@ -208,11 +248,30 @@ func handlePkcs12File(filepath, password string) error {
 	// Create PKCS12 handler and formatter service
 	pkcs12Handler := store.NewPkcs12Handler()
 	formatter := service.NewCertificateFormatter()
+	ctLogClient := client.NewCTLogClient()
+	chainService := service.NewChainService(ctLogClient)
 
 	// Read certificates from PKCS12 file
 	certificates, err := pkcs12Handler.ReadCertificates(filepath, password)
 	if err != nil {
 		return fmt.Errorf("failed to read certificates from PKCS12 file %s: %w", filepath, err)
+	}
+
+	// If we have certificates, complete the chain and find the root
+	if len(certificates) > 0 {
+		// Build complete certificate chain starting from the first certificate
+		completedChain, err := chainService.CompleteCertificateChain(certificates[0])
+		if err != nil {
+			// If chain completion fails, fall back to using certificates as-is
+			completedChain = certificates
+		}
+		
+		// Find the actual root certificate
+		rootCert := chainService.FindRootCertificate(completedChain)
+		if rootCert != nil {
+			// Display just the root certificate
+			certificates = []*x509.Certificate{rootCert}
+		}
 	}
 
 	// Format and display certificates

@@ -26,14 +26,21 @@
 
 #### `Certificate Chain Service`
 
-* **Responsibility:** Implements the logic for building a complete certificate chain as required by the `add` and `rm` commands. Now includes intelligent certificate type detection and conditional processing - self-signed certificates are processed immediately without CT log queries, while CA-signed certificates use recursive CT log fetching to build complete chains.
-* **Key Interfaces:** `BuildChain(certificate)`, `DetectCertificateType(certificate)`, `FindRootCertificate(chain)`.
+* **Responsibility:** Implements the logic for building a complete certificate chain as required by the `add` and `rm` commands. Features intelligent certificate type detection and conditional processing - self-signed certificates are processed immediately without CT log queries, while CA-signed certificates use optimized chain completion. The service now includes `OptimizeExistingChain()` method that leverages certificate chains already obtained from TLS connections, only querying CT logs for genuinely missing certificates.
+* **Key Interfaces:** `CompleteCertificateChain(certificate)`, `OptimizeExistingChain(existingChain)`, `DetectCertificateType(certificate)`, `FindRootCertificate(chain)`.
 * **Dependencies:** `CT Log Client`, `Certificate Type Detector`, `Root Certificate Selector`, `Performance Monitor`.
+* **Technology Stack:** `Go`.
+
+#### `TLS Service`
+
+* **Responsibility:** Handles TLS connections to remote servers to retrieve complete certificate chains. Configured with `InsecureSkipVerify: true` to allow retrieval of non-standards compliant and self-signed certificates for analysis purposes. The service provides the complete certificate chain from TLS handshakes, enabling the optimized chain completion logic.
+* **Key Interfaces:** `GetCertificateChain(domain) []*Certificate`.
+* **Dependencies:** Go's `crypto/tls` and `net` packages.
 * **Technology Stack:** `Go`.
 
 #### `CT Log Client`
 
-* **Responsibility:** A simple HTTP client responsible for making requests to the public Certificate Transparency log service (e.g., `crt.sh`) and parsing the JSON response to extract certificate data. Now includes caching and resilient error handling patterns.
+* **Responsibility:** A simple HTTP client responsible for making requests to the public Certificate Transparency log service (e.g., `crt.sh`) and parsing the JSON response to extract certificate data. Now includes caching and resilient error handling patterns. Used primarily as a fallback when certificates are not available in existing TLS chains.
 * **Key Interfaces:** `FetchIssuersBySerial(serialNumber)`.
 * **Dependencies:** Go's `net/http` client.
 * **Technology Stack:** `Go`.
@@ -73,6 +80,7 @@ graph TD
         H[Certificate Type Detector]
         I[Root Certificate Selector]
         J[Performance Monitor]
+        K[TLS Service]
     end
 
     subgraph Data Access Layer
@@ -87,14 +95,16 @@ graph TD
 
     A --> B
     B --> C
+    B --> K
     B --> D
     B --> E
     B --> F
     C --> H
     C --> I
     C --> J
+    C --> K
     H -->|CA-signed| G
     H -->|self-signed| I
     G --> I
-    C --> G
+    K --> C
 ```
