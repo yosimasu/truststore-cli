@@ -26,16 +26,37 @@
 
 #### `Certificate Chain Service`
 
-* **Responsibility:** Implements the logic for building a complete certificate chain as required by the `add` and `rm` commands. It takes a certificate and uses the `CT Log Client` to recursively fetch any missing issuer certificates.
-* **Key Interfaces:** `BuildChain(certificate)`.
-* **Dependencies:** `CT Log Client`.
+* **Responsibility:** Implements the logic for building a complete certificate chain as required by the `add` and `rm` commands. Now includes intelligent certificate type detection and conditional processing - self-signed certificates are processed immediately without CT log queries, while CA-signed certificates use recursive CT log fetching to build complete chains.
+* **Key Interfaces:** `BuildChain(certificate)`, `DetectCertificateType(certificate)`, `FindRootCertificate(chain)`.
+* **Dependencies:** `CT Log Client`, `Certificate Type Detector`, `Root Certificate Selector`, `Performance Monitor`.
 * **Technology Stack:** `Go`.
 
 #### `CT Log Client`
 
-* **Responsibility:** A simple HTTP client responsible for making requests to the public Certificate Transparency log service (e.g., `crt.sh`) and parsing the JSON response to extract certificate data.
+* **Responsibility:** A simple HTTP client responsible for making requests to the public Certificate Transparency log service (e.g., `crt.sh`) and parsing the JSON response to extract certificate data. Now includes caching and resilient error handling patterns.
 * **Key Interfaces:** `FetchIssuersBySerial(serialNumber)`.
 * **Dependencies:** Go's `net/http` client.
+* **Technology Stack:** `Go`.
+
+#### `Certificate Type Detector`
+
+* **Responsibility:** Analyzes certificate properties to determine if certificates are self-signed or CA-signed, enabling conditional processing logic. Implements sophisticated detection algorithms including signature validation.
+* **Key Interfaces:** `DetectCertificateType(certificate) CertificateType`.
+* **Dependencies:** Go's `crypto/x509` package.
+* **Technology Stack:** `Go`.
+
+#### `Root Certificate Selector`
+
+* **Responsibility:** Analyzes complete certificate chains to correctly identify and select the actual root certificate, replacing the previous naive "last certificate" selection logic.
+* **Key Interfaces:** `FindRootCertificate(chain) *Certificate`, `ValidateCertificateChain(chain) bool`.
+* **Dependencies:** Go's `crypto/x509` package.
+* **Technology Stack:** `Go`.
+
+#### `Performance Monitor`
+
+* **Responsibility:** Collects metrics and timing data for certificate processing operations, providing visibility into optimization effectiveness and system performance patterns.
+* **Key Interfaces:** `RecordOperation(type, duration)`, `GetMetrics() PerformanceMetrics`.
+* **Dependencies:** None.
 * **Technology Stack:** `Go`.
 
 #### Component Diagram
@@ -49,6 +70,9 @@ graph TD
     subgraph Service Layer
         B[Truststore Service]
         C[Certificate Chain Service]
+        H[Certificate Type Detector]
+        I[Root Certificate Selector]
+        J[Performance Monitor]
     end
 
     subgraph Data Access Layer
@@ -66,5 +90,11 @@ graph TD
     B --> D
     B --> E
     B --> F
+    C --> H
+    C --> I
+    C --> J
+    H -->|CA-signed| G
+    H -->|self-signed| I
+    G --> I
     C --> G
 ```

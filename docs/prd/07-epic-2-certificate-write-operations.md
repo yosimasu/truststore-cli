@@ -1,6 +1,6 @@
-### Epic 2: Root Certificate Write Operations
+### Epic 2: Certificate Write Operations
 
-**Goal:** This epic introduces the core modification capabilities of the tool. It will build upon the foundation of Epic 1 by implementing the `add` command, allowing users to insert new root certificates into all supported truststore formats. This transforms the tool from a simple inspection utility into a powerful management solution.
+**Goal:** This epic introduces the core modification capabilities of the tool, implementing the `add` command with comprehensive certificate handling. Starting with basic certificate chain completion, it enhances the system with intelligent certificate type detection and correct root certificate selection to ensure users can reliably add certificates from various sources into target truststores. This transforms the tool from a simple inspection utility into a powerful and accurate management solution.
 
 ***
 
@@ -93,26 +93,91 @@
 8. Handles incorrect passwords and file write errors gracefully.
 9. A loading indicator is displayed during certificate chain completion, validation, and truststore write operations.
 
----
+***
 
-### **Story 2.5: Intelligent Self-Signed Certificate Addition**
-*As a security administrator,*  
-*I want the `add` command to automatically detect when the last certificate in a chain is self-signed and prompt me for confirmation,*  
+#### **Story 2.5: Intelligent Self-Signed Certificate Addition**
+
+*As a security administrator,*\
+*I want the `add` command to automatically detect when the last certificate in a chain is self-signed and prompt me for confirmation,*\
 *So that I can make informed decisions about adding potentially risky self-signed certificates to my truststore.*
 
 **Acceptance Criteria:**
 
 **Functional Requirements:**
+
 1. When `add` command processes a certificate, the Certificate Chain Completion Service (Story 2.1) identifies if the final certificate is self-signed using the existing `isSelfSigned()` method.
 2. If self-signed certificate detected, display certificate details (subject, issuer, expiration, fingerprint) with clear security warning about self-signed certificate risks.
-3. Prompt user with "Self-signed certificate detected. Add to truststore? [y/N]" with secure default "No" requiring explicit confirmation.
+3. Prompt user with "Self-signed certificate detected. Add to truststore? \[y/N]" with secure default "No" requiring explicit confirmation.
 
 **Integration Requirements:**
-4. Existing `add` command functionality for all source types (remote servers, local files) continues to work unchanged.
-5. New functionality follows existing add command error handling, loading indicator, and user interaction patterns.
-6. Integration with Certificate Chain Completion Service maintains current chain completion behavior without modification.
+4\. Existing `add` command functionality for all source types (remote servers, local files) continues to work unchanged.
+5\. New functionality follows existing add command error handling, loading indicator, and user interaction patterns.
+6\. Integration with Certificate Chain Completion Service maintains current chain completion behavior without modification.
 
 **Quality Requirements:**
-7. Add `--yes` flag to bypass interactive confirmation for automation scenarios and CI/CD pipelines.
-8. Security warning clearly explains risks of self-signed certificates and displays certificate fingerprint for verification.
-9. Audit logging captures self-signed certificate additions with source and target details for security compliance.
+7\. Add `--yes` flag to bypass interactive confirmation for automation scenarios and CI/CD pipelines.
+8\. Security warning clearly explains risks of self-signed certificates and displays certificate fingerprint for verification.
+9\. Audit logging captures self-signed certificate additions with source and target details for security compliance.
+
+***
+
+#### **Story 2.6: Certificate Type Detection Enhancement**
+
+*As a DevOps engineer,*
+*I want the certificate chain service to intelligently detect certificate types before processing,*
+*so that self-signed certificates are handled correctly without unnecessary external API calls.*
+
+**Acceptance Criteria:**
+
+**Smart Detection Logic:**
+
+1. Enhance existing certificate chain service with `detectCertificateType()` function
+2. Self-signed detection criteria: subject equals issuer AND certificate validates against its own public key
+3. CA-signed detection criteria: subject differs from issuer OR certificate cannot validate against its own public key
+4. Function returns enum: `SELF_SIGNED`, `CA_SIGNED`, or `UNKNOWN`
+
+**Integration with Existing Service:**
+5\. For `SELF_SIGNED` certificates: Return single-certificate chain immediately, skip CT log calls
+6\. For `CA_SIGNED` certificates: Use existing CT log completion logic from implemented Story 2.1
+7\. For `UNKNOWN` certificates: Default to CA-signed behavior with warning logged
+8\. Maintains backward compatibility with all existing certificate processing flows
+
+**Quality Assurance:**
+9\. Unit tests cover edge cases: intermediate CAs, cross-signed certificates, malformed certificates
+10\. Performance testing shows detection adds minimal overhead (<10ms) to certificate processing
+11\. Integration tests verify correct behavior for both self-signed and CA-signed certificate workflows
+12\. Error handling for corrupted or invalid certificate data
+
+***
+
+#### **Story 2.7: Root Certificate Selection Algorithm Fix**
+
+*As a system administrator,*
+*I want the system to correctly identify and select the actual root certificate from certificate chains,*
+*so that the proper root CA is added to my truststore instead of intermediate or leaf certificates.*
+
+**Acceptance Criteria:**
+
+**Correct Root Identification:**
+
+1. Enhance existing certificate chain service with `findRootCertificate()` function
+2. Root identification logic: Find certificate where subject equals issuer (self-signed root)
+3. If no self-signed certificate found, select certificate highest in chain with longest validity period
+4. Replace existing naive `chain[len(chain)-1]` selection logic with proper root identification
+
+**Chain Analysis Logic:**
+5\. For self-signed certificates: Return the certificate itself as both leaf and root
+6\. For CA-signed certificates: Analyze complete chain to identify actual root certificate
+7\. Add validation that selected certificate can verify certificates lower in the chain
+8\. Handle edge cases: incomplete chains, multiple potential roots, cross-signed certificates
+
+**Validation & Testing:**
+9\. Unit tests cover specific certificate chain scenarios:
+
+* `example.com`: Should select `CN=DigiCert Global Root G3` (not intermediate)
+* `iot.auomesh.io`: Should select `CN=USERTrust RSA Certification Authority`
+* `mqtt.auomesh.io`: Should select the self-signed `CN=ROOT`
+
+10. Integration tests verify correct root certificates are added to all truststore formats
+11. Backward compatibility maintained with existing add/remove command workflows
+12. Error handling for malformed or incomplete certificate chains

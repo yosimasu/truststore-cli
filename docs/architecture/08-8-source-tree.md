@@ -1,4 +1,4 @@
-# Source Tree
+### 8. Source Tree
 
 ```plaintext
 /
@@ -28,7 +28,10 @@
 │   │   └── rm.go
 │   ├── service/
 │   │   ├── truststore.go     # Truststore Service orchestrator
-│   │   └── chain.go          # Certificate Chain Completion Service
+│   │   ├── chain.go          # Certificate Chain Completion Service
+│   │   ├── detector.go       # Certificate Type Detector
+│   │   ├── selector.go       # Root Certificate Selector
+│   │   └── monitor.go        # Performance Monitor
 │   ├── client/
 │   │   └── ctlog.go          # Client for the crt.sh API
 │   └── store/

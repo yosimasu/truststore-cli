@@ -52,8 +52,11 @@ No major recommendations. The PRD is solid.
 | 2025-08-29 | 1.1 | Added Story 2.0: External Service Integration Infrastructure to address CT log resilience and offline development | Sarah (PO) |
 | 2025-08-29 | 1.1 | Rewrote Story 2.1 to clarify it as feature story using infrastructure from 2.0 | Sarah (PO) |
 | 2025-08-29 | 1.1 | Added explicit cross-epic dependencies in Epic 3 and updated Story 3.1 acceptance criteria | Sarah (PO) |
+| 2025-09-04 | 1.2 | Added Epic 4: Certificate Chain CT Log Service Optimization to address architectural inefficiencies in CT service usage | John (PM) |
+| 2025-09-04 | 1.3 | Split Epic 4: Added Stories 2.6 & 2.7 to Epic 2 for essential certificate handling enhancements (type detection, root selection); Epic 4 now focuses on performance optimization and monitoring only | Sarah (PO) |
 
 **Fixes Applied:**
-- **External Service Integration Risk**: Resolved by adding Stories 1.5 and 2.0 with comprehensive offline development support
-- **Infrastructure vs Feature Confusion**: Resolved by repositioning Story 2.1 and adding clear infrastructure dependencies
-- **Cross-Epic Dependencies**: Made explicit in Epic 3 documentation and Story 3.1 acceptance criteria
+
+* **External Service Integration Risk**: Resolved by adding Stories 1.5 and 2.0 with comprehensive offline development support
+* **Infrastructure vs Feature Confusion**: Resolved by repositioning Story 2.1 and adding clear infrastructure dependencies
+* **Cross-Epic Dependencies**: Made explicit in Epic 3 documentation and Story 3.1 acceptance criteria

@@ -23,9 +23,13 @@
 #### Risk Assessment
 
 1. **Risk:** `crt.sh` API Instability.
-   * **Mitigation:** The `CT Log Client` will be the only component that interacts with the API, isolating the risk. This client must have robust error handling and its tests must use a mock server, not the live API.
+   * **Mitigation:** The `CT Log Client` will be the only component that interacts with the API, isolating the risk. This client must have robust error handling and its tests must use a mock server, not the live API. Epic 4's conditional processing reduces this risk by eliminating CT log dependencies for self-signed certificates.
 2. **Risk:** New, unsupported truststore format required in the future.
    * **Mitigation:** The Strategy Pattern design makes this a low risk. A new handler can be created that implements the `Truststore` interface with minimal changes to the core logic.
+3. **Risk:** Certificate type detection edge cases causing incorrect processing.
+   * **Mitigation:** Comprehensive unit tests covering intermediate CAs, cross-signed certificates, and malformed certificates. Unknown certificate types default to CA-signed behavior for safety.
+4. **Risk:** Performance regression for CA-signed certificates due to optimization overhead.
+   * **Mitigation:** Performance monitoring tracks processing times, and certificate type detection is designed to add <10ms overhead. Benchmarking validates that CA-signed certificate processing remains unchanged or improves.
 
 #### Recommendations
 
@@ -34,4 +38,4 @@
 
 #### AI Implementation Readiness
 
-* The architecture is well-suited for AI implementation due to its high modularity, clear separation of concerns, and use of standard interfaces and patterns. The detailed source tree provides a clear map for file creation.
+* The architecture is well-suited for AI implementation due to its high modularity, clear separation of concerns, and use of standard interfaces and patterns. Epic 4's components follow the same architectural principles, maintaining consistency. The detailed source tree provides a clear map for file creation, including the new Epic 4 components.

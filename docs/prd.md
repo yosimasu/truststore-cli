@@ -82,8 +82,9 @@ The project will require both unit tests for individual functions and integratio
 ### 5. Epic List
 
 *   **Epic 1: Foundation & Read-Only Operations:** Establish the core CLI structure, argument parsing, and implement the `list` command for both remote servers and local files to provide initial inspection capabilities.
-*   **Epic 2: Certificate Write Operations:** Implement the `add` command to enable users to add certificates from various sources into target truststores, delivering the core modification feature.
+*   **Epic 2: Certificate Write Operations:** Implement the `add` command with proper certificate type detection and root certificate selection to enable users to add certificates from various sources into target truststores correctly.
 *   **Epic 3: Certificate Removal & Finalization:** Implement the `rm` (remove) command, and finalize the project with comprehensive testing, user documentation, and automated cross-platform builds.
+*   **Epic 4: Performance Optimization & Monitoring:** Optimize Certificate Transparency log usage with conditional processing, performance monitoring, and advanced metrics collection to improve system efficiency.
 
 ### 6. Epic 1: Foundation & Read-Only Operations
 
@@ -157,9 +158,9 @@ The project will require both unit tests for individual functions and integratio
 5.  Common HTTP response structures and parsing utilities are implemented.
 6.  Network connectivity detection and graceful fallback mechanisms are established.
 
-### Epic 2: Root Certificate Write Operations
+### Epic 2: Certificate Write Operations
 
-**Goal:** This epic introduces the core modification capabilities of the tool. It will build upon the foundation of Epic 1 by implementing the `add` command, allowing users to insert new root certificates into all supported truststore formats. This transforms the tool from a simple inspection utility into a powerful management solution.
+**Goal:** This epic introduces the core modification capabilities of the tool, implementing the `add` command with comprehensive certificate handling. Starting with basic certificate chain completion, it enhances the system with intelligent certificate type detection and correct root certificate selection to ensure users can reliably add certificates from various sources into target truststores. This transforms the tool from a simple inspection utility into a powerful and accurate management solution.
 
 ---
 
@@ -266,6 +267,63 @@ The project will require both unit tests for individual functions and integratio
 8. Security warning clearly explains risks of self-signed certificates and displays certificate fingerprint for verification.
 9. Audit logging captures self-signed certificate additions with source and target details for security compliance.
 
+---
+
+#### **Story 2.6: Certificate Type Detection Enhancement**
+*As a DevOps engineer,*
+*I want the certificate chain service to intelligently detect certificate types before processing,*
+*so that self-signed certificates are handled correctly without unnecessary external API calls.*
+
+**Acceptance Criteria:**
+
+**Smart Detection Logic:**
+1. Enhance existing certificate chain service with `detectCertificateType()` function
+2. Self-signed detection criteria: subject equals issuer AND certificate validates against its own public key
+3. CA-signed detection criteria: subject differs from issuer OR certificate cannot validate against its own public key
+4. Function returns enum: `SELF_SIGNED`, `CA_SIGNED`, or `UNKNOWN`
+
+**Integration with Existing Service:**
+5. For `SELF_SIGNED` certificates: Return single-certificate chain immediately, skip CT log calls
+6. For `CA_SIGNED` certificates: Use existing CT log completion logic from implemented Story 2.1
+7. For `UNKNOWN` certificates: Default to CA-signed behavior with warning logged
+8. Maintains backward compatibility with all existing certificate processing flows
+
+**Quality Assurance:**
+9. Unit tests cover edge cases: intermediate CAs, cross-signed certificates, malformed certificates
+10. Performance testing shows detection adds minimal overhead (<10ms) to certificate processing
+11. Integration tests verify correct behavior for both self-signed and CA-signed certificate workflows
+12. Error handling for corrupted or invalid certificate data
+
+---
+
+#### **Story 2.7: Root Certificate Selection Algorithm Fix**
+*As a system administrator,*
+*I want the system to correctly identify and select the actual root certificate from certificate chains,*
+*so that the proper root CA is added to my truststore instead of intermediate or leaf certificates.*
+
+**Acceptance Criteria:**
+
+**Correct Root Identification:**
+1. Enhance existing certificate chain service with `findRootCertificate()` function
+2. Root identification logic: Find certificate where subject equals issuer (self-signed root)
+3. If no self-signed certificate found, select certificate highest in chain with longest validity period
+4. Replace existing naive `chain[len(chain)-1]` selection logic with proper root identification
+
+**Chain Analysis Logic:**
+5. For self-signed certificates: Return the certificate itself as both leaf and root
+6. For CA-signed certificates: Analyze complete chain to identify actual root certificate
+7. Add validation that selected certificate can verify certificates lower in the chain
+8. Handle edge cases: incomplete chains, multiple potential roots, cross-signed certificates
+
+**Validation & Testing:**
+9. Unit tests cover specific certificate chain scenarios:
+   - `example.com`: Should select `CN=DigiCert Global Root G3` (not intermediate)
+   - `iot.auomesh.io`: Should select `CN=USERTrust RSA Certification Authority`
+   - `mqtt.auomesh.io`: Should select the self-signed `CN=ROOT`
+10. Integration tests verify correct root certificates are added to all truststore formats
+11. Backward compatibility maintained with existing add/remove command workflows
+12. Error handling for malformed or incomplete certificate chains
+
 ### Epic 3: Certificate Removal & Finalization
 
 **Goal:** This final epic completes the core functionality by implementing the `rm` (remove) command, which intelligently identifies a root certificate via a source and removes it from a target truststore. It also focuses on project finalization, including robust testing, comprehensive user documentation, and setting up an automated build and release process to deliver the cross-platform binaries.
@@ -353,6 +411,103 @@ The project will require both unit tests for individual functions and integratio
 4.  The compiled binaries are automatically attached to a new GitHub Release.
 5.  The release notes are populated from the git commit history or a changelog file.
 
+### Epic 4: Performance Optimization & Monitoring
+
+**Goal:** This epic focuses on performance optimization of the Certificate Transparency log service usage through conditional processing and comprehensive monitoring. It builds upon the correct certificate handling established in Epic 2 to optimize system efficiency and provide visibility into performance improvements.
+
+**Current Opportunity:** 
+- Potential to reduce unnecessary CT log API calls through smarter conditional logic
+- Need for performance monitoring and metrics collection
+- Opportunity to optimize certificate processing workflows
+- Enhanced observability for system performance patterns
+
+**Business Value:**
+- **Performance**: Reduce unnecessary API calls by leveraging certificate type detection from Epic 2
+- **Observability**: Clear metrics on system performance and optimization effectiveness
+- **Reliability**: Better system monitoring and performance visibility
+- **Cost**: Reduce external API usage and potential rate limiting issues
+
+---
+
+#### **Story 4.1: Conditional CT Log Processing Implementation**
+
+*As a security administrator,*
+*I want the system to leverage the certificate type detection from Epic 2 to conditionally process CT log queries,*
+*so that I get optimized performance without sacrificing correctness.*
+
+**Acceptance Criteria:**
+
+**Conditional Processing Logic:**
+1. Integrate with `detectCertificateType()` function from Story 2.6 to determine processing approach
+2. For `SELF_SIGNED` certificates: Skip CT log queries entirely, use certificate directly
+3. For `CA_SIGNED` certificates: Use full CT log completion logic as established in Epic 2
+4. For `UNKNOWN` certificates: Default to CA-signed behavior with warning logged
+
+**Performance Optimization:**
+5. Implement caching layer for CT log responses to reduce redundant API calls
+6. Add connection pooling and timeout optimization for CT log HTTP client
+7. Implement parallel processing for multiple certificate chain queries when applicable
+8. Add circuit breaker pattern for CT log API resilience
+
+**User Experience:**
+9. Update loading indicators to reflect processing type: "Processing self-signed certificate" vs "Building certificate chain"
+10. Add optional `--verbose` flag to show optimization decisions and timing information
+11. Success messages include processing duration and method used
+
+---
+
+#### **Story 4.2: Performance Monitoring & Metrics Collection**
+
+*As a platform engineer,*
+*I want comprehensive visibility into certificate processing performance and CT log usage patterns,*
+*so that I can monitor optimization effectiveness and identify further improvements.*
+
+**Acceptance Criteria:**
+
+**Metrics Collection:**
+1. Track certificate type detection rates (self-signed vs CA-signed percentages)
+2. Measure CT log query reduction compared to baseline behavior
+3. Record processing time improvements for different certificate types
+4. Monitor CT log API call patterns and response times
+5. Collect cache hit/miss ratios for CT log responses
+
+**Structured Logging:**
+6. Add structured logging for certificate processing decisions and outcomes
+7. Log certificate type detection results with certificate fingerprints (for debugging)
+8. Track CT log service query patterns and response times
+9. Include optimization metrics in verbose mode output
+
+**Performance Validation:**
+10. Benchmark testing shows measurable reduction in CT log queries for self-signed certificates
+11. Self-signed certificate processing demonstrates improved performance consistency
+12. CA-signed certificate processing maintains or improves previous performance levels
+13. Memory usage optimization for certificate chain storage and processing
+
+**Observability Features:**
+14. Add optional `--metrics` flag to display performance statistics after operations
+15. Include timing breakdowns in verbose mode showing detection, processing, and completion phases
+16. Provide summary statistics for batch operations showing optimization impact
+
+---
+
+**Epic Success Criteria:**
+
+1. **Performance**: Measurable reduction in CT log API calls through intelligent conditional processing
+2. **Observability**: Clear visibility into optimization effectiveness through comprehensive metrics
+3. **Compatibility**: Zero breaking changes to existing CLI interfaces and behaviors  
+4. **Reliability**: Enhanced system monitoring without impacting core functionality
+5. **Efficiency**: Optimized resource usage and improved response times
+
+**Dependencies:**
+- Requires correct certificate type detection from Story 2.6 and root selection from Story 2.7
+- Builds upon existing Certificate Chain Completion Service (Story 2.1)
+- Leverages CT log infrastructure from Story 2.0
+
+**Risks:**
+- Performance monitoring overhead could impact system performance if not implemented efficiently
+- Metric collection storage and reporting may require careful resource management
+
+
 ### 7. Checklist Results Report
 
 #### Executive Summary
@@ -399,6 +554,8 @@ No major recommendations. The PRD is solid.
 | 2025-08-29 | 1.1 | Added Story 2.0: External Service Integration Infrastructure to address CT log resilience and offline development | Sarah (PO) |
 | 2025-08-29 | 1.1 | Rewrote Story 2.1 to clarify it as feature story using infrastructure from 2.0 | Sarah (PO) |
 | 2025-08-29 | 1.1 | Added explicit cross-epic dependencies in Epic 3 and updated Story 3.1 acceptance criteria | Sarah (PO) |
+| 2025-09-04 | 1.2 | Added Epic 4: Certificate Chain CT Log Service Optimization to address architectural inefficiencies in CT service usage | John (PM) |
+| 2025-09-04 | 1.3 | Split Epic 4: Added Stories 2.6 & 2.7 to Epic 2 for essential certificate handling enhancements (type detection, root selection); Epic 4 now focuses on performance optimization and monitoring only | Sarah (PO) |
 
 **Fixes Applied:**
 - **External Service Integration Risk**: Resolved by adding Stories 1.5 and 2.0 with comprehensive offline development support

@@ -3,9 +3,10 @@
 **Goal:** This final epic completes the core functionality by implementing the `rm` (remove) command, which intelligently identifies a root certificate via a source and removes it from a target truststore. It also focuses on project finalization, including robust testing, comprehensive user documentation, and setting up an automated build and release process to deliver the cross-platform binaries.
 
 **Epic Dependencies:** This epic builds upon the foundation established in Epic 1 and Epic 2:
-- **From Epic 1**: CLI framework, truststore format handlers, and certificate parsing capabilities
-- **From Epic 2**: Certificate Chain Completion Service (Story 2.1), External Service Integration Infrastructure (Story 2.0), and HTTP Client Infrastructure (Story 1.5)
-- **Shared Components**: All truststore handlers (PEM, JKS, PKCS12), error handling patterns, and user interface consistency patterns
+
+* **From Epic 1**: CLI framework, truststore format handlers, and certificate parsing capabilities
+* **From Epic 2**: Certificate Chain Completion Service (Story 2.1), External Service Integration Infrastructure (Story 2.0), and HTTP Client Infrastructure (Story 1.5)
+* **Shared Components**: All truststore handlers (PEM, JKS, PKCS12), error handling patterns, and user interface consistency patterns
 
 ***
 
@@ -50,11 +51,11 @@
    * "Contributing" section outlining how developers can contribute
 
 **Built-in Help System:**
-2.  The root `truststore --help` command displays:
-   *   Tool description and version
-   *   Available subcommands with brief descriptions
-   *   Global flags (e.g., `--verbose`, `--help`)
-   *   Usage examples for common workflows
+2\.  The root `truststore --help` command displays:
+\*   Tool description and version
+\*   Available subcommands with brief descriptions
+\*   Global flags (e.g., `--verbose`, `--help`)
+\*   Usage examples for common workflows
 
 3. Each subcommand provides comprehensive help via `truststore <command> --help`:
    * **`truststore list --help`**: Shows all supported source types (remote server, PEM, JKS, PKCS12), required and optional flags, and usage examples
@@ -62,18 +63,18 @@
    * **`truststore rm --help`**: Explains source identification, target specification, removal confirmation process, and loading indicator behavior
 
 **Help Text Quality Standards:**
-4.  All help text must be:
-   *   Consistent in format and terminology across all commands
-   *   Include practical examples for each major use case
-   *   Explain flag interactions and dependencies (e.g., `--password` with JKS/PKCS12 files)
-   *   Provide clear error message explanations and resolutions
+4\.  All help text must be:
+\*   Consistent in format and terminology across all commands
+\*   Include practical examples for each major use case
+\*   Explain flag interactions and dependencies (e.g., `--password` with JKS/PKCS12 files)
+\*   Provide clear error message explanations and resolutions
 
 **Validation Requirements:**
-5.  Manual testing confirms that:
-   *   A user can accomplish any documented workflow using only the built-in help
-   *   All flags and combinations mentioned in help text work correctly
-   *   Help text examples can be copy-pasted and executed successfully
-   *   Error messages referenced in documentation match actual CLI output
+5\.  Manual testing confirms that:
+\*   A user can accomplish any documented workflow using only the built-in help
+\*   All flags and combinations mentioned in help text work correctly
+\*   Help text examples can be copy-pasted and executed successfully
+\*   Error messages referenced in documentation match actual CLI output
 
 ***
 
