@@ -611,7 +611,7 @@ func BenchmarkCompleteCertificateChain_SelfSignedOptimization(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		service.CompleteCertificateChain(rootCert)
+		_, _ = service.CompleteCertificateChain(rootCert)
 	}
 }
 
