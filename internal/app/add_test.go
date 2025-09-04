@@ -547,7 +547,7 @@ func TestGetCertificateFingerprint(t *testing.T) {
 	
 	// Check that it's all uppercase hex
 	for _, char := range fingerprint {
-		if !((char >= '0' && char <= '9') || (char >= 'A' && char <= 'F')) {
+		if (char < '0' || char > '9') && (char < 'A' || char > 'F') {
 			t.Errorf("Fingerprint contains invalid character: %c", char)
 		}
 	}
