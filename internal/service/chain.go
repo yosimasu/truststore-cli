@@ -39,6 +39,7 @@ type ChainService interface {
 	CompleteCertificateChain(cert *x509.Certificate) ([]*x509.Certificate, error)
 	IsSelfSigned(cert *x509.Certificate) bool
 	DetectCertificateType(cert *x509.Certificate) CertificateType
+	FindRootCertificate(chain []*x509.Certificate) *x509.Certificate
 }
 
 // chainService implements ChainService
@@ -237,4 +238,105 @@ func (s *chainService) normalizeDN(dn string) string {
 	normalized = strings.ReplaceAll(normalized, ", ", ",")
 
 	return normalized
+}
+
+// FindRootCertificate analyzes a certificate chain to correctly identify and select the actual root certificate
+func (s *chainService) FindRootCertificate(chain []*x509.Certificate) *x509.Certificate {
+	if len(chain) == 0 {
+		return nil
+	}
+
+	// If only one certificate, return it
+	if len(chain) == 1 {
+		return chain[0]
+	}
+
+	// Step 1: Find all self-signed certificates (where subject equals issuer)
+	var selfSignedCerts []*x509.Certificate
+	for _, cert := range chain {
+		if s.DetectCertificateType(cert) == SELF_SIGNED {
+			selfSignedCerts = append(selfSignedCerts, cert)
+		}
+	}
+
+	// Step 2: If we have self-signed certificates, select the best one
+	if len(selfSignedCerts) > 0 {
+		return s.selectBestRootFromCandidates(selfSignedCerts, chain)
+	}
+
+	// Step 3: No self-signed certificates found, use fallback logic
+	// Select certificate with longest validity period that can verify others in the chain
+	return s.selectFallbackRoot(chain)
+}
+
+// selectBestRootFromCandidates selects the best root certificate from self-signed candidates
+func (s *chainService) selectBestRootFromCandidates(candidates []*x509.Certificate, chain []*x509.Certificate) *x509.Certificate {
+	if len(candidates) == 1 {
+		return candidates[0]
+	}
+
+	// Multiple self-signed certificates - select the one that can verify the most certificates in the chain
+	bestCandidate := candidates[0]
+	maxVerifications := s.countVerifiableCertificates(bestCandidate, chain)
+
+	for _, candidate := range candidates[1:] {
+		verifications := s.countVerifiableCertificates(candidate, chain)
+		if verifications > maxVerifications {
+			bestCandidate = candidate
+			maxVerifications = verifications
+		} else if verifications == maxVerifications {
+			// Tie-breaker: select certificate with longest validity period
+			if candidate.NotAfter.After(bestCandidate.NotAfter) {
+				bestCandidate = candidate
+			}
+		}
+	}
+
+	return bestCandidate
+}
+
+// selectFallbackRoot selects a root certificate when no self-signed certificates are found
+func (s *chainService) selectFallbackRoot(chain []*x509.Certificate) *x509.Certificate {
+	if len(chain) == 0 {
+		return nil
+	}
+
+	// Find the certificate with the longest validity period that can verify others
+	bestCandidate := chain[0]
+	maxVerifications := s.countVerifiableCertificates(bestCandidate, chain)
+	longestValidity := bestCandidate.NotAfter.Sub(bestCandidate.NotBefore)
+
+	for _, candidate := range chain[1:] {
+		verifications := s.countVerifiableCertificates(candidate, chain)
+		validity := candidate.NotAfter.Sub(candidate.NotBefore)
+
+		// Prefer certificates that can verify more certificates in the chain
+		if verifications > maxVerifications {
+			bestCandidate = candidate
+			maxVerifications = verifications
+			longestValidity = validity
+		} else if verifications == maxVerifications {
+			// Tie-breaker: select certificate with longest validity period
+			if validity > longestValidity {
+				bestCandidate = candidate
+				longestValidity = validity
+			}
+		}
+	}
+
+	return bestCandidate
+}
+
+// countVerifiableCertificates counts how many certificates in the chain can be verified by the given certificate
+func (s *chainService) countVerifiableCertificates(candidate *x509.Certificate, chain []*x509.Certificate) int {
+	count := 0
+	for _, cert := range chain {
+		if cert == candidate {
+			continue // Don't count self-verification
+		}
+		if s.canVerifyCertificate(cert, candidate) {
+			count++
+		}
+	}
+	return count
 }

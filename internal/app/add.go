@@ -179,8 +179,8 @@ func handleDomainAdd(cmd *cobra.Command, domain, target, targetPassword string) 
 		return fmt.Errorf("no certificates found in chain")
 	}
 
-	// Get the root certificate (last in chain)
-	rootCert := chain[len(chain)-1]
+	// Get the root certificate using proper root selection algorithm
+	rootCert := chainService.FindRootCertificate(chain)
 
 	// Check if root certificate is self-signed and handle user confirmation
 	err = handleSelfSignedCertificate(cmd, rootCert, chainService, domain)
@@ -244,8 +244,8 @@ func handleFileAdd(cmd *cobra.Command, sourcePath, target, sourcePassword, targe
 		return fmt.Errorf("no certificates found in chain")
 	}
 
-	// Get the root certificate (last in chain)
-	rootCert := chain[len(chain)-1]
+	// Get the root certificate using proper root selection algorithm
+	rootCert := chainService.FindRootCertificate(chain)
 
 	// Check if root certificate is self-signed and handle user confirmation
 	err = handleSelfSignedCertificate(cmd, rootCert, chainService, sourcePath)
