@@ -614,3 +614,44 @@ func BenchmarkCompleteCertificateChain_SelfSignedOptimization(b *testing.B) {
 		service.CompleteCertificateChain(rootCert)
 	}
 }
+
+func TestCompleteCertificateChain_CycleDetection(t *testing.T) {
+	// Create certificates that would form a cycle
+	cert1Subject := pkix.Name{CommonName: "Cert1"}
+	cert2Subject := pkix.Name{CommonName: "Cert2"}
+	
+	cert1, cert1Key, err := createTestCertificate(cert1Subject, cert2Subject, true, nil, nil)
+	if err != nil {
+		t.Fatalf("Failed to create cert1: %v", err)
+	}
+
+	cert2, _, err := createTestCertificate(cert2Subject, cert1Subject, true, cert1, cert1Key)
+	if err != nil {
+		t.Fatalf("Failed to create cert2: %v", err)
+	}
+
+	// Mock client that creates a cycle
+	mockClient := &mockCTLogClient{
+		searchResults: map[string][]client.CTLogEntry{
+			"Cert2": {{ID: 2, CommonName: "Cert2"}},
+			"Cert1": {{ID: 1, CommonName: "Cert1"}},
+		},
+		certificates: map[int]*x509.Certificate{
+			1: cert1,
+			2: cert2,
+		},
+	}
+
+	service := NewChainService(mockClient)
+	
+	// This should not hang due to cycle detection
+	chain, err := service.CompleteCertificateChain(cert1)
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+	
+	// Should stop when cycle is detected
+	if len(chain) > 10 {
+		t.Errorf("Chain too long, cycle detection may have failed: %d", len(chain))
+	}
+}
