@@ -530,3 +530,85 @@ func TestAddCertificateToTargetPEM(t *testing.T) {
 		t.Error("PEM file does not contain certificate")
 	}
 }
+
+func TestGetCertificateFingerprint(t *testing.T) {
+	// Generate a test certificate
+	cert, err := generateTestCertificate()
+	if err != nil {
+		t.Fatalf("Failed to generate test certificate: %v", err)
+	}
+
+	fingerprint := getCertificateFingerprint(cert)
+	
+	// Check that fingerprint is a valid hex string of expected length (SHA-256 = 64 hex chars)
+	if len(fingerprint) != 64 {
+		t.Errorf("Expected fingerprint length 64, got %d", len(fingerprint))
+	}
+	
+	// Check that it's all uppercase hex
+	for _, char := range fingerprint {
+		if (char < '0' || char > '9') && (char < 'A' || char > 'F') {
+			t.Errorf("Fingerprint contains invalid character: %c", char)
+		}
+	}
+}
+
+func TestPromptForSelfSignedConfirmation(t *testing.T) {
+	// This test demonstrates the function signature and expected behavior
+	// In practice, this function requires interactive input so we can't easily test it
+	// without mocking stdin, but we can at least verify it exists and has the right signature
+	
+	// Just call the function to ensure it compiles and exists
+	// We can't test interactive behavior easily without mocking
+	_ = promptForSelfSignedConfirmation
+}
+
+func TestDisplayCertificateDetails(t *testing.T) {
+	// Generate a test certificate
+	cert, err := generateTestCertificate()
+	if err != nil {
+		t.Fatalf("Failed to generate test certificate: %v", err)
+	}
+
+	// This function primarily prints to stdout, so we just verify it doesn't panic
+	// and that the function exists
+	displayCertificateDetails(cert)
+}
+
+func TestLogSelfSignedAddition(t *testing.T) {
+	// Generate a test certificate
+	cert, err := generateTestCertificate()
+	if err != nil {
+		t.Fatalf("Failed to generate test certificate: %v", err)
+	}
+
+	// Test both automated and interactive logging
+	// These functions primarily log to the standard logger, so we just verify they don't panic
+	logSelfSignedAddition("test-source", cert, true)  // automated
+	logSelfSignedAddition("test-source", cert, false) // interactive
+}
+
+func TestNewAddCommandWithYesFlag(t *testing.T) {
+	cmd := NewAddCommand()
+
+	// Test that yes flag exists
+	yesFlag := cmd.Flags().Lookup("yes")
+	if yesFlag == nil {
+		t.Error("Expected 'yes' flag to exist")
+		return
+	}
+	
+	// Test flag properties
+	if yesFlag.Shorthand != "y" {
+		t.Errorf("Expected shorthand 'y', got '%s'", yesFlag.Shorthand)
+	}
+	
+	// Test default value
+	defaultValue, err := cmd.Flags().GetBool("yes")
+	if err != nil {
+		t.Errorf("Failed to get default value for yes flag: %v", err)
+	}
+	if defaultValue != false {
+		t.Errorf("Expected default value false, got %v", defaultValue)
+	}
+}
