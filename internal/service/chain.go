@@ -11,6 +11,7 @@ import (
 // ChainService handles certificate chain completion operations
 type ChainService interface {
 	CompleteCertificateChain(cert *x509.Certificate) ([]*x509.Certificate, error)
+	IsSelfSigned(cert *x509.Certificate) bool
 }
 
 // chainService implements ChainService
@@ -46,7 +47,7 @@ func (s *chainService) CompleteCertificateChain(cert *x509.Certificate) ([]*x509
 
 	for depth := 0; depth < maxDepth; depth++ {
 		// Check if current certificate is self-signed (root)
-		if s.isSelfSigned(current) {
+		if s.IsSelfSigned(current) {
 			break
 		}
 
@@ -81,8 +82,8 @@ func (s *chainService) CompleteCertificateChain(cert *x509.Certificate) ([]*x509
 	return chain, nil
 }
 
-// isSelfSigned checks if a certificate is self-signed (root certificate)
-func (s *chainService) isSelfSigned(cert *x509.Certificate) bool {
+// IsSelfSigned checks if a certificate is self-signed (root certificate)
+func (s *chainService) IsSelfSigned(cert *x509.Certificate) bool {
 	// Check if subject equals issuer
 	if cert.Subject.String() == cert.Issuer.String() {
 		return true

@@ -1,10 +1,13 @@
 package app
 
 import (
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/hex"
 	"encoding/pem"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -106,6 +109,9 @@ During execution, you'll see progress indicators:
 	cmd.Flags().StringP("target-password", "", "", "Password for target keystore (required for JKS/PKCS12). Use --target-password=<password> or --target-password for interactive prompt")
 	cmd.Flags().Lookup("target-password").NoOptDefVal = "PROMPT"
 
+	// Add yes flag for automation scenarios
+	cmd.Flags().BoolP("yes", "y", false, "Automatically confirm self-signed certificate additions without prompting (for automation/CI scenarios)")
+
 	return cmd
 }
 
@@ -133,15 +139,15 @@ func runAddCommand(cmd *cobra.Command, args []string) error {
 
 	// Determine if source is a domain or file path
 	if isAddDomainSource(source) {
-		return handleDomainAdd(source, target, targetPassword)
+		return handleDomainAdd(cmd, source, target, targetPassword)
 	}
 
 	// Handle file sources
-	return handleFileAdd(source, target, sourcePassword, targetPassword)
+	return handleFileAdd(cmd, source, target, sourcePassword, targetPassword)
 }
 
 // handleDomainAdd adds root certificate from a remote server to target file
-func handleDomainAdd(domain, target, targetPassword string) error {
+func handleDomainAdd(cmd *cobra.Command, domain, target, targetPassword string) error {
 	// Start loading indicator for TLS certificate retrieval
 	stopTLS := startLoadingIndicator(fmt.Sprintf("Retrieving certificate from %s", domain))
 
@@ -176,6 +182,12 @@ func handleDomainAdd(domain, target, targetPassword string) error {
 	// Get the root certificate (last in chain)
 	rootCert := chain[len(chain)-1]
 
+	// Check if root certificate is self-signed and handle user confirmation
+	err = handleSelfSignedCertificate(cmd, rootCert, chainService, domain)
+	if err != nil {
+		return err
+	}
+
 	// Add root certificate to target file using appropriate handler
 	err = addCertificateToTarget(target, rootCert, targetPassword)
 	if err != nil {
@@ -189,7 +201,7 @@ func handleDomainAdd(domain, target, targetPassword string) error {
 }
 
 // handleFileAdd adds root certificate from a local file to target file
-func handleFileAdd(sourcePath, target, sourcePassword, targetPassword string) error {
+func handleFileAdd(cmd *cobra.Command, sourcePath, target, sourcePassword, targetPassword string) error {
 	// Validate that source file exists
 	if err := validateSourceFilePath(sourcePath); err != nil {
 		return fmt.Errorf("invalid source file: %w", err)
@@ -234,6 +246,12 @@ func handleFileAdd(sourcePath, target, sourcePassword, targetPassword string) er
 
 	// Get the root certificate (last in chain)
 	rootCert := chain[len(chain)-1]
+
+	// Check if root certificate is self-signed and handle user confirmation
+	err = handleSelfSignedCertificate(cmd, rootCert, chainService, sourcePath)
+	if err != nil {
+		return err
+	}
 
 	// Add root certificate to target file using appropriate handler
 	err = addCertificateToTarget(target, rootCert, targetPassword)
@@ -617,4 +635,90 @@ func readCertificatesFromSourceFile(sourcePath, password string) ([]*x509.Certif
 		// Default to PEM for unknown extensions
 		return readCertificatesFromFile(sourcePath)
 	}
+}
+
+// handleSelfSignedCertificate checks if the root certificate is self-signed and handles user confirmation
+func handleSelfSignedCertificate(cmd *cobra.Command, cert *x509.Certificate, chainService service.ChainService, source string) error {
+	// Check if the certificate is self-signed using the chain service
+	if !chainService.IsSelfSigned(cert) {
+		return nil // Not self-signed, continue normal flow
+	}
+
+	// Check if --yes flag is provided to bypass confirmation
+	yesFlag, _ := cmd.Flags().GetBool("yes")
+	if yesFlag {
+		// Log the automated addition
+		logSelfSignedAddition(source, cert, true)
+		fmt.Printf("⚠️  Self-signed certificate detected (auto-confirmed with --yes flag)\n")
+		return nil
+	}
+
+	// Display certificate details and security warning
+	displayCertificateDetails(cert)
+
+	// Prompt for user confirmation
+	confirmed, err := promptForSelfSignedConfirmation()
+	if err != nil {
+		return fmt.Errorf("failed to get user confirmation: %w", err)
+	}
+
+	if !confirmed {
+		return fmt.Errorf("self-signed certificate addition cancelled by user")
+	}
+
+	// Log the interactive addition
+	logSelfSignedAddition(source, cert, false)
+	return nil
+}
+
+// displayCertificateDetails shows certificate information with security warning
+func displayCertificateDetails(cert *x509.Certificate) {
+	fmt.Printf("\n⚠️  SECURITY WARNING: Self-signed certificate detected!\n")
+	fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+	fmt.Printf("Self-signed certificates are not verified by a trusted Certificate Authority.\n")
+	fmt.Printf("Adding them to your truststore may expose you to security risks.\n")
+	fmt.Printf("Only proceed if you trust the certificate source.\n\n")
+	
+	fmt.Printf("Certificate Details:\n")
+	fmt.Printf("  Subject:     %s\n", cert.Subject.String())
+	fmt.Printf("  Issuer:      %s\n", cert.Issuer.String())
+	fmt.Printf("  Valid From:  %s\n", cert.NotBefore.Format("2006-01-02 15:04:05 MST"))
+	fmt.Printf("  Valid Until: %s\n", cert.NotAfter.Format("2006-01-02 15:04:05 MST"))
+	fmt.Printf("  Fingerprint: %s\n", getCertificateFingerprint(cert))
+	fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+}
+
+// getCertificateFingerprint generates SHA-256 fingerprint for the certificate
+func getCertificateFingerprint(cert *x509.Certificate) string {
+	hash := sha256.Sum256(cert.Raw)
+	return strings.ToUpper(hex.EncodeToString(hash[:]))
+}
+
+// promptForSelfSignedConfirmation prompts user for confirmation with secure default
+func promptForSelfSignedConfirmation() (bool, error) {
+	fmt.Printf("Self-signed certificate detected. Add to truststore? [y/N]: ")
+	
+	var response string
+	_, err := fmt.Scanln(&response)
+	if err != nil {
+		// Handle case where user just presses Enter (empty input)
+		response = ""
+	}
+
+	// Normalize response 
+	response = strings.ToLower(strings.TrimSpace(response))
+	
+	// Only "y" or "yes" are accepted as confirmation
+	return response == "y" || response == "yes", nil
+}
+
+// logSelfSignedAddition logs the self-signed certificate addition for audit purposes
+func logSelfSignedAddition(source string, cert *x509.Certificate, automated bool) {
+	mode := "interactive"
+	if automated {
+		mode = "automated"
+	}
+	
+	log.Printf("AUDIT: Self-signed certificate added [%s] - Source: %s, Subject: %s, Fingerprint: %s", 
+		mode, source, cert.Subject.String(), getCertificateFingerprint(cert))
 }
