@@ -267,7 +267,7 @@ func TestIsSelfSigned(t *testing.T) {
 		t.Fatalf("Failed to create self-signed certificate: %v", err)
 	}
 
-	if !service.isSelfSigned(selfSigned) {
+	if !service.IsSelfSigned(selfSigned) {
 		t.Error("Expected true for self-signed certificate")
 	}
 
@@ -284,7 +284,7 @@ func TestIsSelfSigned(t *testing.T) {
 		t.Fatalf("Failed to create non-self-signed certificate: %v", err)
 	}
 
-	if service.isSelfSigned(nonSelfSigned) {
+	if service.IsSelfSigned(nonSelfSigned) {
 		t.Error("Expected false for non-self-signed certificate")
 	}
 }
