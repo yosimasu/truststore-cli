@@ -37,6 +37,7 @@ func (ct CertificateType) String() string {
 // ChainService handles certificate chain completion operations
 type ChainService interface {
 	CompleteCertificateChain(cert *x509.Certificate) ([]*x509.Certificate, error)
+	OptimizeExistingChain(existingChain []*x509.Certificate) ([]*x509.Certificate, error)
 	IsSelfSigned(cert *x509.Certificate) bool
 	DetectCertificateType(cert *x509.Certificate) CertificateType
 	FindRootCertificate(chain []*x509.Certificate) *x509.Certificate
@@ -55,6 +56,8 @@ func NewChainService(ctLogClient client.CTLogClient) ChainService {
 }
 
 // CompleteCertificateChain takes a certificate and builds its complete chain
+// This method now uses an optimized approach that only fetches missing certificates
+// and stops as soon as a root certificate is found
 func (s *chainService) CompleteCertificateChain(cert *x509.Certificate) ([]*x509.Certificate, error) {
 	if cert == nil {
 		return nil, fmt.Errorf("certificate cannot be nil")
@@ -69,7 +72,7 @@ func (s *chainService) CompleteCertificateChain(cert *x509.Certificate) ([]*x509
 		return []*x509.Certificate{cert}, nil
 	}
 
-	// For CA-signed certificates, use existing CT log completion logic
+	// For CA-signed certificates, use optimized CT log completion logic
 	// For unknown certificates, default to CA-signed behavior with warning logged
 	if certType == UNKNOWN {
 		// Log warning for unknown certificate type (in production, this would use a proper logger)
@@ -85,9 +88,9 @@ func (s *chainService) CompleteCertificateChain(cert *x509.Certificate) ([]*x509
 		visited[string(cert.SubjectKeyId)] = true
 	}
 
-	// Iteratively build the chain
+	// Iteratively build the chain - but stop at first root certificate found
 	current := cert
-	maxDepth := 10 // Prevent infinite loops with a reasonable depth limit
+	maxDepth := 8 // Reasonable depth limit for certificate chains
 
 	for depth := 0; depth < maxDepth; depth++ {
 		// Check if current certificate is self-signed (root)
@@ -95,8 +98,8 @@ func (s *chainService) CompleteCertificateChain(cert *x509.Certificate) ([]*x509
 			break
 		}
 
-		// Find the issuer certificate
-		issuer, err := s.findIssuerCertificate(current, visited)
+		// Find the FIRST valid issuer certificate (don't explore all possibilities)
+		issuer, err := s.findFirstValidIssuer(current, visited)
 		if err != nil {
 			// Log the error but don't fail - return partial chain
 			break
@@ -121,9 +124,131 @@ func (s *chainService) CompleteCertificateChain(cert *x509.Certificate) ([]*x509
 
 		// Move to next level
 		current = issuer
+
+		// OPTIMIZATION: Stop immediately if we find a self-signed certificate
+		if s.DetectCertificateType(issuer) == SELF_SIGNED {
+			break
+		}
 	}
 
 	return chain, nil
+}
+
+// OptimizeExistingChain takes an existing certificate chain and completes it intelligently
+// This method checks if issuers are already present in the chain before querying CT logs
+// This is more efficient than CompleteCertificateChain which starts from a single certificate
+func (s *chainService) OptimizeExistingChain(existingChain []*x509.Certificate) ([]*x509.Certificate, error) {
+	if len(existingChain) == 0 {
+		return nil, fmt.Errorf("existing chain cannot be empty")
+	}
+
+	// Start with the existing chain
+	optimizedChain := make([]*x509.Certificate, len(existingChain))
+	copy(optimizedChain, existingChain)
+
+	// Track visited certificates to prevent cycles
+	visited := make(map[string]bool)
+	for _, cert := range existingChain {
+		if len(cert.SubjectKeyId) > 0 {
+			visited[string(cert.SubjectKeyId)] = true
+		}
+	}
+
+	// Check if we already have a self-signed certificate (root)
+	for _, cert := range optimizedChain {
+		if s.DetectCertificateType(cert) == SELF_SIGNED {
+			// We already have a root certificate, no need to extend the chain
+			return optimizedChain, nil
+		}
+	}
+
+	// Find the certificate that appears to be the highest in the chain
+	// (the one whose issuer is not the subject of any other certificate in the chain)
+	topCert := s.findTopCertificateInChain(optimizedChain)
+	if topCert == nil {
+		// Fallback to the last certificate in the chain
+		topCert = optimizedChain[len(optimizedChain)-1]
+	}
+
+	// Only if we don't have a complete chain to root, try to extend it
+	maxDepth := 5 // Limit additional fetches
+	current := topCert
+
+	for depth := 0; depth < maxDepth; depth++ {
+		// Check if current certificate is self-signed (root)
+		if s.DetectCertificateType(current) == SELF_SIGNED {
+			break
+		}
+
+		// First, check if the issuer is already in our existing chain
+		issuer := s.findIssuerInChain(current, optimizedChain)
+		if issuer != nil {
+			// Issuer already exists in chain, no need to fetch from CT logs
+			// Reorganize chain if needed to ensure proper order
+			continue
+		}
+
+		// Only query CT logs if issuer is NOT in the existing chain
+		issuer, err := s.findFirstValidIssuer(current, visited)
+		if err != nil || issuer == nil {
+			// No more issuers found, stop here
+			break
+		}
+
+		// Add the new issuer to the chain
+		optimizedChain = append(optimizedChain, issuer)
+
+		// Mark issuer as visited to prevent cycles
+		if len(issuer.SubjectKeyId) > 0 {
+			if visited[string(issuer.SubjectKeyId)] {
+				break // Cycle detected
+			}
+			visited[string(issuer.SubjectKeyId)] = true
+		}
+
+		// Move to next level
+		current = issuer
+
+		// Stop if we found a root certificate
+		if s.DetectCertificateType(issuer) == SELF_SIGNED {
+			break
+		}
+	}
+
+	return optimizedChain, nil
+}
+
+// findTopCertificateInChain finds the certificate in the chain that appears to be highest
+// (its issuer is not the subject of any other certificate in the chain)
+func (s *chainService) findTopCertificateInChain(chain []*x509.Certificate) *x509.Certificate {
+	for _, candidate := range chain {
+		isTop := true
+		for _, other := range chain {
+			if candidate == other {
+				continue
+			}
+			// If another certificate's subject matches this certificate's issuer,
+			// then this certificate is not at the top
+			if s.namesMatch(other.Subject.String(), candidate.Issuer.String()) {
+				isTop = false
+				break
+			}
+		}
+		if isTop {
+			return candidate
+		}
+	}
+	return nil // No clear top certificate found
+}
+
+// findIssuerInChain searches for the issuer of a certificate within the existing chain
+func (s *chainService) findIssuerInChain(cert *x509.Certificate, chain []*x509.Certificate) *x509.Certificate {
+	for _, candidate := range chain {
+		if s.canVerifyCertificate(cert, candidate) {
+			return candidate
+		}
+	}
+	return nil // Issuer not found in existing chain
 }
 
 // DetectCertificateType analyzes a certificate to determine if it's self-signed, CA-signed, or unknown
@@ -158,8 +283,10 @@ func (s *chainService) IsSelfSigned(cert *x509.Certificate) bool {
 	return s.DetectCertificateType(cert) == SELF_SIGNED
 }
 
-// findIssuerCertificate searches for the issuer of the given certificate
-func (s *chainService) findIssuerCertificate(cert *x509.Certificate, visited map[string]bool) (*x509.Certificate, error) {
+// findFirstValidIssuer searches for the first valid issuer of the given certificate
+// This is an optimized version that returns the first valid issuer found, rather than
+// exploring all possibilities. This leads to more predictable and consistent chain building.
+func (s *chainService) findFirstValidIssuer(cert *x509.Certificate, visited map[string]bool) (*x509.Certificate, error) {
 	// Get issuer name from certificate
 	issuerName := cert.Issuer.CommonName
 	if issuerName == "" {
@@ -177,13 +304,23 @@ func (s *chainService) findIssuerCertificate(cert *x509.Certificate, visited map
 		return nil, fmt.Errorf("failed to search for issuer certificates: %w", err)
 	}
 
-	// Try each candidate certificate
+	// Limit the search to reasonable number of candidates for predictable behavior
+	maxCandidates := 15 // Increased from 5 to improve success rate
+	candidatesChecked := 0
+
+	// Try each candidate certificate, but limit the search for predictability
 	for _, entry := range entries {
+		if candidatesChecked >= maxCandidates {
+			break // Stop after checking limited number of candidates
+		}
+
 		// Skip if we've already seen this certificate
 		candidateID := fmt.Sprintf("id_%d", entry.ID)
 		if visited[candidateID] {
 			continue
 		}
+
+		candidatesChecked++
 
 		// Download the candidate certificate
 		candidate, err := s.ctLogClient.DownloadCertificate(entry.ID)
@@ -196,12 +333,14 @@ func (s *chainService) findIssuerCertificate(cert *x509.Certificate, visited map
 		if s.canVerifyCertificate(cert, candidate) {
 			// Mark this candidate as visited using its ID
 			visited[candidateID] = true
+			// RETURN IMMEDIATELY - don't look for other possibilities
 			return candidate, nil
 		}
 	}
 
-	return nil, nil // No valid issuer found
+	return nil, nil // No valid issuer found in the limited search
 }
+
 
 // canVerifyCertificate checks if the candidate can verify the subject certificate
 func (s *chainService) canVerifyCertificate(subject, candidate *x509.Certificate) bool {

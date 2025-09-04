@@ -2,7 +2,7 @@
 
 #### Technical Summary
 
-The system will be a monolithic, self-contained command-line interface (CLI) tool developed in Go (Golang). Its architecture will be organized around a central command-and-control structure using the Cobra library, with distinct packages for handling different truststore formats (PEM, JKS, PKCS12) and for core functionalities like certificate chain completion via Certificate Transparency logs. The design now incorporates intelligent certificate type detection and conditional CT log processing to optimize performance and eliminate unnecessary network calls for self-signed certificates. The architecture prioritizes simplicity, reliability, performance optimization, and cross-platform compatibility, directly supporting the PRD goals of creating an intuitive and powerful certificate management tool.
+The system will be a monolithic, self-contained command-line interface (CLI) tool developed in Go (Golang). Its architecture will be organized around a central command-and-control structure using the Cobra library, with distinct packages for handling different truststore formats (PEM, JKS, PKCS12) and for core functionalities like certificate chain completion via Certificate Transparency logs. The design incorporates intelligent certificate type detection, conditional CT log processing, and optimized chain completion that leverages existing certificate chains from TLS connections. This eliminates unnecessary network calls for self-signed certificates and minimizes CT log queries by reusing certificates already obtained from TLS handshakes. The architecture prioritizes simplicity, reliability, performance optimization, and cross-platform compatibility, directly supporting the PRD goals of creating an intuitive and powerful certificate management tool.
 
 #### High Level Overview
 
@@ -14,6 +14,7 @@ The system will be a monolithic, self-contained command-line interface (CLI) too
   * **Cobra Library:** A popular Go library for building modern CLIs. It simplifies command, argument, and flag parsing.
   * **Interface-based Truststore Handling:** Each truststore type (PEM, JKS, PKCS12) will implement a common `Truststore` interface, allowing for consistent handling of different file formats.
   * **Intelligent Certificate Processing:** Certificate type detection determines whether certificates are self-signed or CA-signed before deciding on CT log queries, optimizing performance and reducing external API dependencies.
+  * **Optimized Chain Completion:** The system leverages existing certificate chains from TLS connections and only queries CT logs for missing certificates, significantly improving performance and reducing external API calls.
 
 #### High Level Project Diagram
 

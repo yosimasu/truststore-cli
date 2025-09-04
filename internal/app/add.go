@@ -2,7 +2,6 @@ package app
 
 import (
 	"crypto/sha256"
-	"crypto/tls"
 	"crypto/x509"
 	"encoding/hex"
 	"encoding/pem"
@@ -151,7 +150,7 @@ func handleDomainAdd(cmd *cobra.Command, domain, target, targetPassword string) 
 	// Start loading indicator for TLS certificate retrieval
 	stopTLS := startLoadingIndicator(fmt.Sprintf("Retrieving certificate from %s", domain))
 
-	cert, err := retrieveCertificateFromDomain(domain)
+	tlsChain, err := retrieveCertificateChainFromDomain(domain)
 	stopTLS()
 
 	if err != nil {
@@ -160,17 +159,17 @@ func handleDomainAdd(cmd *cobra.Command, domain, target, targetPassword string) 
 
 	fmt.Printf("✓ Certificate retrieved from %s\n", domain)
 
-	// Start loading indicator for certificate chain completion
-	stopChain := startLoadingIndicator("Completing certificate chain via CT logs")
+	// Start loading indicator for certificate chain optimization
+	stopChain := startLoadingIndicator("Optimizing certificate chain (checking for missing certificates)")
 
 	ctLogClient := client.NewCTLogClient()
 	chainService := service.NewChainService(ctLogClient)
 
-	chain, err := chainService.CompleteCertificateChain(cert)
+	chain, err := chainService.OptimizeExistingChain(tlsChain)
 	stopChain()
 
 	if err != nil {
-		return fmt.Errorf("failed to complete certificate chain: %w", err)
+		return fmt.Errorf("failed to optimize certificate chain: %w", err)
 	}
 
 	fmt.Printf("✓ Certificate chain completed (%d certificates found)\n", len(chain))
@@ -222,20 +221,26 @@ func handleFileAdd(cmd *cobra.Command, sourcePath, target, sourcePassword, targe
 
 	fmt.Printf("✓ Read %d certificate(s) from %s\n", len(certs), sourcePath)
 
-	// Use the first certificate for chain completion
-	cert := certs[0]
-
-	// Start loading indicator for certificate chain completion
-	stopChain := startLoadingIndicator("Completing certificate chain via CT logs")
+	// Start loading indicator for certificate chain optimization
+	stopChain := startLoadingIndicator("Optimizing certificate chain (checking for missing certificates)")
 
 	ctLogClient := client.NewCTLogClient()
 	chainService := service.NewChainService(ctLogClient)
 
-	chain, err := chainService.CompleteCertificateChain(cert)
+	// Use optimized chain completion if we have multiple certificates, otherwise use single certificate completion
+	var chain []*x509.Certificate
+
+	if len(certs) > 1 {
+		// We have multiple certificates from the file - use optimized chain completion
+		chain, err = chainService.OptimizeExistingChain(certs)
+	} else {
+		// Single certificate - use traditional completion
+		chain, err = chainService.CompleteCertificateChain(certs[0])
+	}
 	stopChain()
 
 	if err != nil {
-		return fmt.Errorf("failed to complete certificate chain: %w", err)
+		return fmt.Errorf("failed to optimize certificate chain: %w", err)
 	}
 
 	fmt.Printf("✓ Certificate chain completed (%d certificates found)\n", len(chain))
@@ -265,36 +270,24 @@ func handleFileAdd(cmd *cobra.Command, sourcePath, target, sourcePassword, targe
 	return nil
 }
 
-// retrieveCertificateFromDomain gets the certificate from a remote server
+// retrieveCertificateChainFromDomain gets the complete certificate chain from a remote server
+func retrieveCertificateChainFromDomain(domain string) ([]*x509.Certificate, error) {
+	// Use the existing TLS service which already handles this properly
+	tlsService := service.NewTLSService()
+	return tlsService.GetCertificateChain(domain)
+}
+
+// retrieveCertificateFromDomain gets the certificate from a remote server (legacy method for backward compatibility)
 func retrieveCertificateFromDomain(domain string) (*x509.Certificate, error) {
-	// Add default port if not specified
-	host := domain
-	if !strings.Contains(domain, ":") {
-		host = domain + ":443"
-	}
-
-	// Connect to the server and get certificate
-	conn, err := tls.Dial("tcp", host, &tls.Config{
-		ServerName: domain, // Use original domain for SNI
-	})
+	chain, err := retrieveCertificateChainFromDomain(domain)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to %s: %w", host, err)
+		return nil, err
 	}
-	defer func() {
-		if err := conn.Close(); err != nil {
-			// Log connection close error but don't fail the operation
-			_ = err
-		}
-	}()
-
-	// Get the peer certificate chain
-	peerCerts := conn.ConnectionState().PeerCertificates
-	if len(peerCerts) == 0 {
+	if len(chain) == 0 {
 		return nil, fmt.Errorf("no certificates received from %s", domain)
 	}
-
 	// Return the first certificate (leaf certificate)
-	return peerCerts[0], nil
+	return chain[0], nil
 }
 
 // validateTargetPath validates the target file path

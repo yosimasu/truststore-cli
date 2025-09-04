@@ -4,7 +4,6 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -18,11 +17,15 @@ import (
 // function works correctly when integrated with actual truststore operations
 func TestFindRootCertificate_IntegrationWithTruststores(t *testing.T) {
 	// Create temporary directory for test files
-	tempDir, err := ioutil.TempDir("", "truststore_test")
+	tempDir, err := os.MkdirTemp("", "truststore_test")
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Errorf("Failed to clean up temp directory: %v", err)
+		}
+	}()
 
 	t.Run("PEM file integration", func(t *testing.T) {
 		testRootSelectionIntegration(t, tempDir, "test.pem", "")
@@ -125,11 +128,15 @@ func testRootSelectionIntegration(t *testing.T, tempDir, filename, password stri
 // TestFindRootCertificate_WorkflowIntegration tests the complete workflow
 // from chain building to root selection to truststore storage
 func TestFindRootCertificate_WorkflowIntegration(t *testing.T) {
-	tempDir, err := ioutil.TempDir("", "workflow_test")
+	tempDir, err := os.MkdirTemp("", "workflow_test")
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Errorf("Failed to clean up temp directory: %v", err)
+		}
+	}()
 
 	t.Run("complete workflow simulation", func(t *testing.T) {
 		// Step 1: Create certificate chain (simulates CompleteCertificateChain result)

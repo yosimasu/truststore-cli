@@ -39,8 +39,10 @@ func (s *tlsService) GetCertificateChain(domain string) ([]*x509.Certificate, er
 	address := net.JoinHostPort(host, port)
 
 	// Set up TLS configuration
+	// Skip certificate verification since we're just retrieving certificates for analysis
 	config := &tls.Config{
-		ServerName: host,
+		ServerName:         host,
+		InsecureSkipVerify: true,
 	}
 
 	// Create connection with timeout
