@@ -36,11 +36,11 @@ type ResilientConfig struct {
 func DefaultResilientConfig() *ResilientConfig {
 	return &ResilientConfig{
 		EnableCaching:            true,
-		SearchCacheTTL:          15 * time.Minute,
-		CertCacheTTL:            1 * time.Hour,
-		EnableOfflineFallback:   true,
+		SearchCacheTTL:           15 * time.Minute,
+		CertCacheTTL:             1 * time.Hour,
+		EnableOfflineFallback:    true,
 		ConnectivityCheckTimeout: 5 * time.Second,
-		MaxOfflineRetries:       3,
+		MaxOfflineRetries:        3,
 	}
 }
 
@@ -49,13 +49,13 @@ func NewResilientCTLogClient(baseClient CTLogClient, config *ResilientConfig) Re
 	if config == nil {
 		config = DefaultResilientConfig()
 	}
-	
+
 	client := &resilientCTLogClient{
 		client:       baseClient,
 		connectivity: NewNetworkConnectivity(),
 		config:       config,
 	}
-	
+
 	// Set up caching if enabled
 	if config.EnableCaching {
 		cache := NewMemoryCache()
@@ -65,7 +65,7 @@ func NewResilientCTLogClient(baseClient CTLogClient, config *ResilientConfig) Re
 		client.client = cachedClient
 		client.cache = cache
 	}
-	
+
 	// Set up fallback handling if enabled
 	if config.EnableOfflineFallback {
 		fallbackConfig := &FallbackConfig{
@@ -75,7 +75,7 @@ func NewResilientCTLogClient(baseClient CTLogClient, config *ResilientConfig) Re
 		}
 		client.fallback = NewFallbackManager(fallbackConfig)
 	}
-	
+
 	return client
 }
 
@@ -97,12 +97,12 @@ func (r *resilientCTLogClient) SearchWithFallback(ctx context.Context, issuerNam
 			return results, nil
 		}
 	}
-	
+
 	// Check connectivity if fallback is enabled
 	if r.fallback != nil && r.fallback.ShouldUseOfflineMode(ctx) {
 		return nil, NewNetworkError("offline mode: network connectivity unavailable for certificate search")
 	}
-	
+
 	// Attempt network request
 	return r.client.SearchCertificatesByIssuer(issuerName)
 }
@@ -115,12 +115,12 @@ func (r *resilientCTLogClient) DownloadWithFallback(ctx context.Context, id int)
 			return cert, nil
 		}
 	}
-	
+
 	// Check connectivity if fallback is enabled
 	if r.fallback != nil && r.fallback.ShouldUseOfflineMode(ctx) {
 		return nil, NewNetworkError("offline mode: network connectivity unavailable for certificate download")
 	}
-	
+
 	// Attempt network request
 	return r.client.DownloadCertificate(id)
 }
@@ -151,21 +151,21 @@ func NewRateLimiter(requestsPerSecond int) *RateLimiter {
 	if requestsPerSecond <= 0 {
 		requestsPerSecond = 10 // Default to 10 requests per second
 	}
-	
+
 	limiter := &RateLimiter{
 		tokens:     make(chan struct{}, requestsPerSecond),
 		refillRate: time.Second / time.Duration(requestsPerSecond),
 		done:       make(chan bool),
 	}
-	
+
 	// Fill initial tokens
 	for i := 0; i < requestsPerSecond; i++ {
 		limiter.tokens <- struct{}{}
 	}
-	
+
 	// Start token refill goroutine
 	go limiter.refillTokens()
-	
+
 	return limiter
 }
 
@@ -173,7 +173,7 @@ func NewRateLimiter(requestsPerSecond int) *RateLimiter {
 func (rl *RateLimiter) refillTokens() {
 	ticker := time.NewTicker(rl.refillRate)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-ticker.C:
@@ -234,16 +234,16 @@ func (r *rateLimitedCTLogClient) DownloadCertificate(id int) (*x509.Certificate,
 func NewFullyCTLogClient() ResilientCTLogClient {
 	// Start with base HTTP client with retry logic
 	httpClient := NewHTTPClient(DefaultConfig())
-	
+
 	// Create basic CT log client
 	baseClient := NewCTLogClientWithHTTPClient(httpClient)
-	
+
 	// Add rate limiting (10 requests per second to be respectful)
 	rateLimitedClient := NewRateLimitedCTLogClient(baseClient, 10)
-	
+
 	// Wrap with resilient features (caching, fallback, connectivity)
 	config := DefaultResilientConfig()
 	resilientClient := NewResilientCTLogClient(rateLimitedClient, config)
-	
+
 	return resilientClient
 }

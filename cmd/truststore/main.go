@@ -10,7 +10,7 @@ import (
 var (
 	// Version information - will be set during build
 	version = "dev"
-	commit  = "none" //nolint:unused // Used by build process
+	commit  = "none"    //nolint:unused // Used by build process
 	date    = "unknown" //nolint:unused // Used by build process
 )
 

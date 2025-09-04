@@ -161,7 +161,7 @@ func (s *IntegrationTestSuite) TestNetworkConnectivity(url string) bool {
 		return false
 	}
 	_ = resp.Body.Close()
-	
+
 	return resp.StatusCode < 500
 }
 
@@ -201,11 +201,11 @@ func (s *IntegrationTestSuite) RunBothModes(name string, testFunc func(t *testin
 		offlineConfig := *s.config
 		offlineConfig.OnlineTestsEnabled = false
 		offlineConfig.MockMode = true
-		
+
 		offlineSuite := NewIntegrationTestSuite(t, &offlineConfig)
 		offlineSuite.SetupCTLogMockServer()
 		defer offlineSuite.TearDown()
-		
+
 		testFunc(t, offlineSuite)
 	})
 }

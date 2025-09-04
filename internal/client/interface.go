@@ -67,7 +67,7 @@ type ResilientCTLogClient interface {
 	CTLogClient
 	// SearchWithFallback searches with graceful degradation
 	SearchWithFallback(ctx context.Context, issuerName string) ([]CTLogEntry, error)
-	// DownloadWithFallback downloads with graceful degradation  
+	// DownloadWithFallback downloads with graceful degradation
 	DownloadWithFallback(ctx context.Context, id int) (*x509.Certificate, error)
 	// GetNetworkStatus returns current network connectivity status
 	GetNetworkStatus() ConnectivityStatus

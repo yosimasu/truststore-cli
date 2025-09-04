@@ -32,7 +32,7 @@ func TestDefaultIntegrationConfig(t *testing.T) {
 		_ = os.Unsetenv("TEST_TIMEOUT")
 
 		config := DefaultIntegrationConfig()
-		
+
 		if !config.OnlineTestsEnabled {
 			t.Error("Expected OnlineTestsEnabled to be true by default")
 		}
@@ -49,7 +49,7 @@ func TestDefaultIntegrationConfig(t *testing.T) {
 
 	t.Run("offline tests enabled", func(t *testing.T) {
 		_ = os.Setenv("OFFLINE_TESTS", "true")
-		
+
 		config := DefaultIntegrationConfig()
 		if config.OnlineTestsEnabled {
 			t.Error("Expected OnlineTestsEnabled to be false when OFFLINE_TESTS=true")
@@ -59,7 +59,7 @@ func TestDefaultIntegrationConfig(t *testing.T) {
 	t.Run("CI environment", func(t *testing.T) {
 		_ = os.Unsetenv("OFFLINE_TESTS")
 		_ = os.Setenv("CI", "true")
-		
+
 		config := DefaultIntegrationConfig()
 		if config.OnlineTestsEnabled {
 			t.Error("Expected OnlineTestsEnabled to be false in CI environment")
@@ -68,7 +68,7 @@ func TestDefaultIntegrationConfig(t *testing.T) {
 
 	t.Run("mock mode enabled", func(t *testing.T) {
 		_ = os.Setenv("MOCK_MODE", "true")
-		
+
 		config := DefaultIntegrationConfig()
 		if !config.MockMode {
 			t.Error("Expected MockMode to be true when MOCK_MODE=true")
@@ -78,7 +78,7 @@ func TestDefaultIntegrationConfig(t *testing.T) {
 	t.Run("custom base URL", func(t *testing.T) {
 		expectedURL := "https://test.example.com"
 		_ = os.Setenv("TEST_BASE_URL", expectedURL)
-		
+
 		config := DefaultIntegrationConfig()
 		if config.BaseURL != expectedURL {
 			t.Errorf("Expected BaseURL %q, got %q", expectedURL, config.BaseURL)
@@ -87,7 +87,7 @@ func TestDefaultIntegrationConfig(t *testing.T) {
 
 	t.Run("custom timeout", func(t *testing.T) {
 		_ = os.Setenv("TEST_TIMEOUT", "45s")
-		
+
 		config := DefaultIntegrationConfig()
 		if config.TestTimeout != 45*time.Second {
 			t.Errorf("Expected timeout 45s, got %v", config.TestTimeout)
@@ -96,7 +96,7 @@ func TestDefaultIntegrationConfig(t *testing.T) {
 
 	t.Run("invalid timeout", func(t *testing.T) {
 		_ = os.Setenv("TEST_TIMEOUT", "invalid")
-		
+
 		config := DefaultIntegrationConfig()
 		if config.TestTimeout != 30*time.Second {
 			t.Errorf("Expected default timeout 30s for invalid timeout, got %v", config.TestTimeout)
@@ -110,9 +110,9 @@ func TestNewIntegrationTestSuite(t *testing.T) {
 		TestTimeout:        10 * time.Second,
 		MockMode:           true,
 	}
-	
+
 	suite := NewIntegrationTestSuite(t, config)
-	
+
 	if suite == nil {
 		t.Fatal("NewIntegrationTestSuite returned nil")
 	}
@@ -130,26 +130,26 @@ func TestNewIntegrationTestSuite(t *testing.T) {
 func TestIntegrationTestSuite_MockServer(t *testing.T) {
 	suite := NewIntegrationTestSuite(t, &IntegrationTestConfig{})
 	defer suite.TearDown()
-	
+
 	// Test mock server setup
 	suite.SetupMockServer(MockServerConfig{
 		ReturnStatus: 200,
 		ResponseBody: "test response",
 	})
-	
+
 	if suite.mockServer == nil {
 		t.Fatal("Mock server not set up")
 	}
-	
+
 	url := suite.MockServerURL()
 	if url == "" {
 		t.Error("Mock server URL is empty")
 	}
-	
+
 	// Test CT log mock server
 	suite2 := NewIntegrationTestSuite(t, &IntegrationTestConfig{})
 	defer suite2.TearDown()
-	
+
 	suite2.SetupCTLogMockServer()
 	if suite2.mockServer == nil {
 		t.Fatal("CT log mock server not set up")
@@ -161,33 +161,33 @@ func TestIntegrationTestSuite_BaseURL(t *testing.T) {
 		BaseURL: "https://custom.example.com",
 	})
 	defer suite.TearDown()
-	
+
 	// Should return custom base URL
 	url := suite.BaseURL("https://default.example.com")
 	if url != "https://custom.example.com" {
 		t.Errorf("Expected custom URL, got %q", url)
 	}
-	
+
 	// Test with mock server - custom BaseURL should still take precedence
 	suite.SetupMockServer(MockServerConfig{})
 	url = suite.BaseURL("https://default.example.com")
 	if url != "https://custom.example.com" {
 		t.Errorf("Expected custom URL to take precedence, got %q", url)
 	}
-	
+
 	// Test with no config and no mock server
 	suite2 := NewIntegrationTestSuite(t, &IntegrationTestConfig{})
 	defer suite2.TearDown()
-	
+
 	url = suite2.BaseURL("https://default.example.com")
 	if url != "https://default.example.com" {
 		t.Errorf("Expected default URL, got %q", url)
 	}
-	
+
 	// Test mock server URL when MockMode is enabled and no custom BaseURL
 	suite3 := NewIntegrationTestSuite(t, &IntegrationTestConfig{MockMode: true})
 	defer suite3.TearDown()
-	
+
 	suite3.SetupMockServer(MockServerConfig{})
 	url = suite3.BaseURL("https://default.example.com")
 	if url != suite3.mockServer.URL {
@@ -202,28 +202,28 @@ func TestIntegrationTestSuite_Modes(t *testing.T) {
 	}
 	onlineSuite := NewIntegrationTestSuite(t, onlineConfig)
 	defer onlineSuite.TearDown()
-	
+
 	if !onlineSuite.IsOnlineMode() {
 		t.Error("Expected online mode")
 	}
 	if onlineSuite.IsMockMode() {
 		t.Error("Expected not mock mode")
 	}
-	
+
 	mockConfig := &IntegrationTestConfig{
 		OnlineTestsEnabled: false,
 		MockMode:           true,
 	}
 	mockSuite := NewIntegrationTestSuite(t, mockConfig)
 	defer mockSuite.TearDown()
-	
+
 	if mockSuite.IsOnlineMode() {
 		t.Error("Expected not online mode")
 	}
 	if !mockSuite.IsMockMode() {
 		t.Error("Expected mock mode")
 	}
-	
+
 	// Test mock mode with mock server
 	mockSuite.SetupMockServer(MockServerConfig{})
 	if !mockSuite.IsMockMode() {
@@ -236,17 +236,17 @@ func TestIntegrationTestSuite_TestNetworkConnectivity(t *testing.T) {
 		MockMode: true,
 	})
 	defer suite.TearDown()
-	
+
 	// Should return true in mock mode
 	if !suite.TestNetworkConnectivity("http://unreachable.example.com") {
 		t.Error("Expected network connectivity to be true in mock mode")
 	}
-	
+
 	// Test with mock server
 	suite.SetupMockServer(MockServerConfig{
 		ReturnStatus: 200,
 	})
-	
+
 	if !suite.TestNetworkConnectivity(suite.MockServerURL()) {
 		t.Error("Expected network connectivity to mock server to be true")
 	}
@@ -255,10 +255,10 @@ func TestIntegrationTestSuite_TestNetworkConnectivity(t *testing.T) {
 func TestIntegrationTestSuite_Helpers(t *testing.T) {
 	suite := NewIntegrationTestSuite(t, &IntegrationTestConfig{})
 	defer suite.TearDown()
-	
+
 	// Test AssertNoError
 	suite.AssertNoError(nil) // Should not fail
-	
+
 	// Test AssertError
 	testErr := NewValidationError("test error message")
 	suite.AssertError(testErr, "test error") // Should not fail
@@ -267,13 +267,13 @@ func TestIntegrationTestSuite_Helpers(t *testing.T) {
 func TestIntegrationTestSuite_SkipMethods(t *testing.T) {
 	// Test skip methods - we can't test the actual skipping behavior
 	// but we can verify the methods exist and don't panic
-	
+
 	offlineConfig := &IntegrationTestConfig{
 		OnlineTestsEnabled: false,
 	}
 	offlineSuite := NewIntegrationTestSuite(&testing.T{}, offlineConfig)
 	defer offlineSuite.TearDown()
-	
+
 	// These would skip in a real test, but won't panic
 	func() {
 		defer func() {
@@ -290,10 +290,10 @@ func TestIntegrationTestSuite_RunModeTests(t *testing.T) {
 		OnlineTestsEnabled: true,
 		MockMode:           false,
 	}
-	
+
 	suite := NewIntegrationTestSuite(t, config)
 	defer suite.TearDown()
-	
+
 	// Test RunBothModes - this creates subtests
 	suite.RunBothModes("test_both", func(t *testing.T, s *IntegrationTestSuite) {
 		// Just verify the method runs without panicking
@@ -305,7 +305,7 @@ func TestIntegrationTestSuite_RunModeTests(t *testing.T) {
 			_ = s
 		}
 	})
-	
+
 	// Note: In a real test environment, both would run
 	// Here we just verify the method doesn't panic
 }

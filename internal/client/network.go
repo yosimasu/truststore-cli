@@ -18,8 +18,8 @@ func NewNetworkConnectivity() *NetworkConnectivity {
 	return &NetworkConnectivity{
 		timeout: 5 * time.Second,
 		fallbackHosts: []string{
-			"8.8.8.8:53",     // Google DNS
-			"1.1.1.1:53",     // Cloudflare DNS
+			"8.8.8.8:53",        // Google DNS
+			"1.1.1.1:53",        // Cloudflare DNS
 			"208.67.222.222:53", // OpenDNS
 		},
 	}
@@ -71,18 +71,18 @@ func (nc *NetworkConnectivity) CanReachURL(url string) bool {
 // CanReachURLWithContext checks if a URL is reachable via HTTP with context
 func (nc *NetworkConnectivity) CanReachURLWithContext(ctx context.Context, url string) bool {
 	client := &http.Client{Timeout: nc.timeout}
-	
+
 	req, err := http.NewRequestWithContext(ctx, "HEAD", url, nil)
 	if err != nil {
 		return false
 	}
-	
+
 	resp, err := client.Do(req)
 	if err != nil {
 		return false
 	}
 	_ = resp.Body.Close()
-	
+
 	// Consider any response (even errors) as connectivity
 	return true
 }
@@ -95,30 +95,30 @@ func (nc *NetworkConnectivity) GetConnectivityStatus() ConnectivityStatus {
 // GetConnectivityStatusWithContext returns detailed connectivity status with context
 func (nc *NetworkConnectivity) GetConnectivityStatusWithContext(ctx context.Context) ConnectivityStatus {
 	status := ConnectivityStatus{
-		Online:        false,
-		HostsChecked:  len(nc.fallbackHosts),
+		Online:         false,
+		HostsChecked:   len(nc.fallbackHosts),
 		ReachableHosts: make([]string, 0),
 	}
-	
+
 	for _, host := range nc.fallbackHosts {
 		if nc.canConnect(ctx, host) {
 			status.Online = true
 			status.ReachableHosts = append(status.ReachableHosts, host)
 		}
 	}
-	
+
 	return status
 }
 
 // canConnect attempts to connect to a host
 func (nc *NetworkConnectivity) canConnect(ctx context.Context, host string) bool {
 	dialer := &net.Dialer{Timeout: nc.timeout}
-	
+
 	conn, err := dialer.DialContext(ctx, "tcp", host)
 	if err != nil {
 		return false
 	}
-	
+
 	if err := conn.Close(); err != nil {
 		// Log but don't fail - connectivity test already succeeded
 		_ = err
@@ -162,7 +162,7 @@ func NewFallbackManager(config *FallbackConfig) *FallbackManager {
 	if config == nil {
 		config = DefaultFallbackConfig()
 	}
-	
+
 	return &FallbackManager{
 		connectivity: NewNetworkConnectivity(),
 		config:       config,
@@ -180,11 +180,11 @@ func (fm *FallbackManager) ShouldUseOfflineMode(ctx context.Context) bool {
 	if !fm.config.EnableOfflineMode {
 		return false
 	}
-	
+
 	// Check connectivity with timeout
 	timeoutCtx, cancel := context.WithTimeout(ctx, fm.config.OfflineTimeout)
 	defer cancel()
-	
+
 	return !fm.connectivity.IsOnlineWithContext(timeoutCtx)
 }
 
@@ -194,7 +194,7 @@ func (fm *FallbackManager) WaitForConnectivity(ctx context.Context) error {
 		if fm.connectivity.IsOnlineWithContext(ctx) {
 			return nil
 		}
-		
+
 		if attempt < fm.config.MaxRetries-1 {
 			select {
 			case <-ctx.Done():
@@ -204,7 +204,7 @@ func (fm *FallbackManager) WaitForConnectivity(ctx context.Context) error {
 			}
 		}
 	}
-	
+
 	return NewNetworkError("network connectivity not available after retries")
 }
 

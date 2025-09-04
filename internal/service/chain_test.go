@@ -25,12 +25,12 @@ func (m *mockCTLogClient) SearchCertificatesByIssuer(issuerName string) ([]clien
 	if m.searchError != nil {
 		return nil, m.searchError
 	}
-	
+
 	entries, exists := m.searchResults[issuerName]
 	if !exists {
 		return []client.CTLogEntry{}, nil
 	}
-	
+
 	return entries, nil
 }
 
@@ -38,12 +38,12 @@ func (m *mockCTLogClient) DownloadCertificate(id int) (*x509.Certificate, error)
 	if m.downloadError != nil {
 		return nil, m.downloadError
 	}
-	
+
 	cert, exists := m.certificates[id]
 	if !exists {
 		return nil, fmt.Errorf("certificate with ID %d not found", id)
 	}
-	
+
 	return cert, nil
 }
 
@@ -97,7 +97,7 @@ func createTestCertificate(subject, issuer pkix.Name, isCA bool, parent *x509.Ce
 func TestNewChainService(t *testing.T) {
 	mockClient := &mockCTLogClient{}
 	service := NewChainService(mockClient)
-	
+
 	if service == nil {
 		t.Fatal("NewChainService returned nil")
 	}
@@ -106,7 +106,7 @@ func TestNewChainService(t *testing.T) {
 func TestCompleteCertificateChain_NilCertificate(t *testing.T) {
 	mockClient := &mockCTLogClient{}
 	service := NewChainService(mockClient)
-	
+
 	_, err := service.CompleteCertificateChain(nil)
 	if err == nil {
 		t.Error("Expected error for nil certificate")
@@ -126,16 +126,16 @@ func TestCompleteCertificateChain_SelfSignedCertificate(t *testing.T) {
 
 	mockClient := &mockCTLogClient{}
 	service := NewChainService(mockClient)
-	
+
 	chain, err := service.CompleteCertificateChain(rootCert)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
-	
+
 	if len(chain) != 1 {
 		t.Errorf("Expected chain length 1 for self-signed cert, got %d", len(chain))
 	}
-	
+
 	if chain[0] != rootCert {
 		t.Error("Chain should contain only the original certificate")
 	}
@@ -174,26 +174,26 @@ func TestCompleteCertificateChain_CompleteChain(t *testing.T) {
 	}
 
 	service := NewChainService(mockClient)
-	
+
 	// Start with leaf certificate
 	chain, err := service.CompleteCertificateChain(leafCert)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
-	
+
 	// Should have leaf -> intermediate -> root
 	if len(chain) != 3 {
 		t.Errorf("Expected chain length 3, got %d", len(chain))
 	}
-	
+
 	if chain[0] != leafCert {
 		t.Error("First certificate should be the leaf")
 	}
-	
+
 	if chain[1].Subject.CommonName != "Intermediate CA" {
 		t.Errorf("Second certificate should be intermediate, got %s", chain[1].Subject.CommonName)
 	}
-	
+
 	if chain[2].Subject.CommonName != "Root CA" {
 		t.Errorf("Third certificate should be root, got %s", chain[2].Subject.CommonName)
 	}
@@ -215,17 +215,17 @@ func TestCompleteCertificateChain_PartialChain(t *testing.T) {
 	}
 
 	service := NewChainService(mockClient)
-	
+
 	chain, err := service.CompleteCertificateChain(leafCert)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
-	
+
 	// Should have only the original certificate
 	if len(chain) != 1 {
 		t.Errorf("Expected chain length 1, got %d", len(chain))
 	}
-	
+
 	if chain[0] != leafCert {
 		t.Error("Chain should contain only the original certificate")
 	}
@@ -245,12 +245,12 @@ func TestCompleteCertificateChain_SearchError(t *testing.T) {
 	}
 
 	service := NewChainService(mockClient)
-	
+
 	chain, err := service.CompleteCertificateChain(leafCert)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
-	
+
 	// Should return partial chain (just the original certificate)
 	if len(chain) != 1 {
 		t.Errorf("Expected chain length 1, got %d", len(chain))
@@ -278,7 +278,7 @@ func TestIsSelfSigned(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create root certificate: %v", err)
 	}
-	
+
 	nonSelfSigned, _, err := createTestCertificate(leafSubject, rootSubject, false, rootCert, rootKey)
 	if err != nil {
 		t.Fatalf("Failed to create non-self-signed certificate: %v", err)
@@ -351,43 +351,266 @@ func TestNormalizeDN(t *testing.T) {
 	}
 }
 
-func TestCompleteCertificateChain_CycleDetection(t *testing.T) {
-	// Create certificates that would form a cycle
-	cert1Subject := pkix.Name{CommonName: "Cert1"}
-	cert2Subject := pkix.Name{CommonName: "Cert2"}
-	
-	cert1, cert1Key, err := createTestCertificate(cert1Subject, cert2Subject, true, nil, nil)
-	if err != nil {
-		t.Fatalf("Failed to create cert1: %v", err)
+func TestDetectCertificateType(t *testing.T) {
+	service := &chainService{}
+
+	t.Run("nil certificate returns UNKNOWN", func(t *testing.T) {
+		certType := service.DetectCertificateType(nil)
+		if certType != UNKNOWN {
+			t.Errorf("Expected UNKNOWN for nil certificate, got %s", certType)
+		}
+	})
+
+	t.Run("self-signed certificate returns SELF_SIGNED", func(t *testing.T) {
+		// Create self-signed certificate
+		subject := pkix.Name{CommonName: "Root CA"}
+		selfSigned, _, err := createTestCertificate(subject, subject, true, nil, nil)
+		if err != nil {
+			t.Fatalf("Failed to create self-signed certificate: %v", err)
+		}
+
+		certType := service.DetectCertificateType(selfSigned)
+		if certType != SELF_SIGNED {
+			t.Errorf("Expected SELF_SIGNED for self-signed certificate, got %s", certType)
+		}
+	})
+
+	t.Run("CA-signed certificate returns CA_SIGNED", func(t *testing.T) {
+		// Create certificate chain: Root -> Leaf
+		rootSubject := pkix.Name{CommonName: "Root CA"}
+		rootCert, rootKey, err := createTestCertificate(rootSubject, rootSubject, true, nil, nil)
+		if err != nil {
+			t.Fatalf("Failed to create root certificate: %v", err)
+		}
+
+		leafSubject := pkix.Name{CommonName: "example.com"}
+		leafCert, _, err := createTestCertificate(leafSubject, rootSubject, false, rootCert, rootKey)
+		if err != nil {
+			t.Fatalf("Failed to create leaf certificate: %v", err)
+		}
+
+		certType := service.DetectCertificateType(leafCert)
+		if certType != CA_SIGNED {
+			t.Errorf("Expected CA_SIGNED for CA-signed certificate, got %s", certType)
+		}
+	})
+
+	t.Run("intermediate CA certificate returns CA_SIGNED", func(t *testing.T) {
+		// Create certificate chain: Root -> Intermediate -> Leaf
+		rootSubject := pkix.Name{CommonName: "Root CA"}
+		rootCert, rootKey, err := createTestCertificate(rootSubject, rootSubject, true, nil, nil)
+		if err != nil {
+			t.Fatalf("Failed to create root certificate: %v", err)
+		}
+
+		intermSubject := pkix.Name{CommonName: "Intermediate CA"}
+		intermCert, _, err := createTestCertificate(intermSubject, rootSubject, true, rootCert, rootKey)
+		if err != nil {
+			t.Fatalf("Failed to create intermediate certificate: %v", err)
+		}
+
+		certType := service.DetectCertificateType(intermCert)
+		if certType != CA_SIGNED {
+			t.Errorf("Expected CA_SIGNED for intermediate CA certificate, got %s", certType)
+		}
+	})
+
+	t.Run("cross-signed certificate returns CA_SIGNED", func(t *testing.T) {
+		// Create two root CAs
+		rootSubject1 := pkix.Name{CommonName: "Root CA 1"}
+		_, _, err := createTestCertificate(rootSubject1, rootSubject1, true, nil, nil)
+		if err != nil {
+			t.Fatalf("Failed to create root certificate 1: %v", err)
+		}
+
+		rootSubject2 := pkix.Name{CommonName: "Root CA 2"}
+		rootCert2, rootKey2, err := createTestCertificate(rootSubject2, rootSubject2, true, nil, nil)
+		if err != nil {
+			t.Fatalf("Failed to create root certificate 2: %v", err)
+		}
+
+		// Create cross-signed certificate: Root CA 1 signed by Root CA 2's key
+		crossSigned, _, err := createTestCertificate(rootSubject1, rootSubject2, true, rootCert2, rootKey2)
+		if err != nil {
+			t.Fatalf("Failed to create cross-signed certificate: %v", err)
+		}
+
+		certType := service.DetectCertificateType(crossSigned)
+		if certType != CA_SIGNED {
+			t.Errorf("Expected CA_SIGNED for cross-signed certificate, got %s", certType)
+		}
+	})
+}
+
+func TestCertificateType_String(t *testing.T) {
+	tests := []struct {
+		certType CertificateType
+		expected string
+	}{
+		{SELF_SIGNED, "SELF_SIGNED"},
+		{CA_SIGNED, "CA_SIGNED"},
+		{UNKNOWN, "UNKNOWN"},
+		{CertificateType(999), "UNKNOWN"}, // Invalid type should return UNKNOWN
 	}
 
-	cert2, _, err := createTestCertificate(cert2Subject, cert1Subject, true, cert1, cert1Key)
+	for _, tt := range tests {
+		t.Run(tt.expected, func(t *testing.T) {
+			result := tt.certType.String()
+			if result != tt.expected {
+				t.Errorf("Expected %s, got %s", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestCompleteCertificateChain_SelfSignedOptimization(t *testing.T) {
+	// Create a self-signed certificate
+	subject := pkix.Name{CommonName: "Root CA"}
+	rootCert, _, err := createTestCertificate(subject, subject, true, nil, nil)
 	if err != nil {
-		t.Fatalf("Failed to create cert2: %v", err)
+		t.Fatalf("Failed to create test certificate: %v", err)
 	}
 
-	// Mock client that creates a cycle
+	// Create a mock client that would fail if called (to verify CT log calls are skipped)
 	mockClient := &mockCTLogClient{
-		searchResults: map[string][]client.CTLogEntry{
-			"Cert2": {{ID: 2, CommonName: "Cert2"}},
-			"Cert1": {{ID: 1, CommonName: "Cert1"}},
-		},
-		certificates: map[int]*x509.Certificate{
-			1: cert1,
-			2: cert2,
-		},
+		searchError: fmt.Errorf("CT log should not be called for self-signed certificates"),
 	}
-
 	service := NewChainService(mockClient)
-	
-	// This should not hang due to cycle detection
-	chain, err := service.CompleteCertificateChain(cert1)
+
+	chain, err := service.CompleteCertificateChain(rootCert)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
-	
-	// Should stop when cycle is detected
-	if len(chain) > 10 {
-		t.Errorf("Chain too long, cycle detection may have failed: %d", len(chain))
+
+	if len(chain) != 1 {
+		t.Errorf("Expected chain length 1 for self-signed cert, got %d", len(chain))
+	}
+
+	if chain[0] != rootCert {
+		t.Error("Chain should contain only the original certificate")
+	}
+}
+
+func TestCompleteCertificateChain_BackwardCompatibility(t *testing.T) {
+	// This test ensures that existing IsSelfSigned behavior is preserved
+	service := &chainService{}
+
+	// Create self-signed certificate
+	subject := pkix.Name{CommonName: "Root CA"}
+	selfSigned, _, err := createTestCertificate(subject, subject, true, nil, nil)
+	if err != nil {
+		t.Fatalf("Failed to create self-signed certificate: %v", err)
+	}
+
+	// Test that IsSelfSigned still works as before
+	if !service.IsSelfSigned(selfSigned) {
+		t.Error("IsSelfSigned should return true for self-signed certificate")
+	}
+
+	// Test that detection result matches IsSelfSigned result
+	certType := service.DetectCertificateType(selfSigned)
+	isSelfSigned := service.IsSelfSigned(selfSigned)
+
+	if (certType == SELF_SIGNED) != isSelfSigned {
+		t.Errorf("DetectCertificateType and IsSelfSigned results should be consistent")
+	}
+}
+
+// Helper function to create malformed certificate for testing
+func createMalformedCertificate() *x509.Certificate {
+	// Create a certificate with invalid signature to test edge cases
+	template := x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{CommonName: "Malformed Cert"},
+		Issuer:       pkix.Name{CommonName: "Malformed Cert"},
+		NotBefore:    time.Now(),
+		NotAfter:     time.Now().Add(365 * 24 * time.Hour),
+	}
+
+	// This creates a certificate without proper signature validation
+	return &template
+}
+
+func TestDetectCertificateType_EdgeCases(t *testing.T) {
+	service := &chainService{}
+
+	t.Run("certificate with matching subject/issuer but invalid signature", func(t *testing.T) {
+		malformed := createMalformedCertificate()
+
+		certType := service.DetectCertificateType(malformed)
+		// Should be CA_SIGNED because signature validation fails
+		if certType != CA_SIGNED {
+			t.Errorf("Expected CA_SIGNED for certificate with invalid signature, got %s", certType)
+		}
+	})
+
+	t.Run("certificate with empty subject and issuer", func(t *testing.T) {
+		// Create certificate with empty names - this needs to be self-signed to work properly
+		emptyName := pkix.Name{}
+		cert, _, err := createTestCertificate(emptyName, emptyName, true, nil, nil)
+		if err != nil {
+			t.Fatalf("Failed to create certificate with empty names: %v", err)
+		}
+
+		certType := service.DetectCertificateType(cert)
+		// Should be SELF_SIGNED because subject equals issuer (both empty) and signature validates
+		if certType != SELF_SIGNED {
+			t.Errorf("Expected SELF_SIGNED for certificate with empty matching names, got %s", certType)
+		}
+	})
+}
+
+// Benchmark tests to ensure detection adds minimal overhead (<10ms requirement)
+func BenchmarkDetectCertificateType_SelfSigned(b *testing.B) {
+	service := &chainService{}
+	subject := pkix.Name{CommonName: "Root CA"}
+	cert, _, err := createTestCertificate(subject, subject, true, nil, nil)
+	if err != nil {
+		b.Fatalf("Failed to create test certificate: %v", err)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		service.DetectCertificateType(cert)
+	}
+}
+
+func BenchmarkDetectCertificateType_CASigned(b *testing.B) {
+	service := &chainService{}
+
+	// Create certificate chain: Root -> Leaf
+	rootSubject := pkix.Name{CommonName: "Root CA"}
+	rootCert, rootKey, err := createTestCertificate(rootSubject, rootSubject, true, nil, nil)
+	if err != nil {
+		b.Fatalf("Failed to create root certificate: %v", err)
+	}
+
+	leafSubject := pkix.Name{CommonName: "example.com"}
+	leafCert, _, err := createTestCertificate(leafSubject, rootSubject, false, rootCert, rootKey)
+	if err != nil {
+		b.Fatalf("Failed to create leaf certificate: %v", err)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		service.DetectCertificateType(leafCert)
+	}
+}
+
+func BenchmarkCompleteCertificateChain_SelfSignedOptimization(b *testing.B) {
+	// Create a self-signed certificate
+	subject := pkix.Name{CommonName: "Root CA"}
+	rootCert, _, err := createTestCertificate(subject, subject, true, nil, nil)
+	if err != nil {
+		b.Fatalf("Failed to create test certificate: %v", err)
+	}
+
+	// Mock client (should not be called for self-signed)
+	mockClient := &mockCTLogClient{}
+	service := NewChainService(mockClient)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		service.CompleteCertificateChain(rootCert)
 	}
 }

@@ -63,7 +63,7 @@ func (c *ctLogClient) SearchCertificatesByIssuer(issuerName string) ([]CTLogEntr
 	params.Add("CN", issuerName)
 	params.Add("output", "json")
 	params.Add("exclude", "expired")
-	
+
 	searchURL := c.baseURL + "?" + params.Encode()
 
 	// Make HTTP request using new infrastructure

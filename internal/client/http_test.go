@@ -11,7 +11,7 @@ import (
 
 func TestDefaultConfig(t *testing.T) {
 	config := DefaultConfig()
-	
+
 	if config.Timeout != 15*time.Second {
 		t.Errorf("Expected timeout 15s, got %v", config.Timeout)
 	}

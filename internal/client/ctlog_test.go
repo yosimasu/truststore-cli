@@ -9,7 +9,6 @@ import (
 	"time"
 )
 
-
 func TestNewCTLogClient(t *testing.T) {
 	client := NewCTLogClient()
 	if client == nil {

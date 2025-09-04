@@ -141,7 +141,7 @@ func (h *PemHandler) RemoveCertificate(filepath string, cert *x509.Certificate, 
 	// Find and remove the matching certificate
 	var remainingCerts []*x509.Certificate
 	found := false
-	
+
 	for _, existing := range existingCerts {
 		if cert.Equal(existing) {
 			found = true

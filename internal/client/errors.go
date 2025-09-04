@@ -118,7 +118,6 @@ func ClassifyError(err error, requestURL string) *HTTPError {
 	return httpError
 }
 
-
 // classifyNetError classifies net.Error types
 func classifyNetError(netErr net.Error, url string) *HTTPError {
 	httpError := &HTTPError{
@@ -141,7 +140,7 @@ func classifyNetError(netErr net.Error, url string) *HTTPError {
 // classifyGenericError classifies generic errors
 func classifyGenericError(err error, url string) *HTTPError {
 	errStr := strings.ToLower(err.Error())
-	
+
 	httpError := &HTTPError{
 		Type:    ErrorTypeUnknown,
 		Message: err.Error(),
@@ -215,12 +214,12 @@ func IsRetryable(err error) bool {
 	if httpErr, ok := err.(*HTTPError); ok {
 		return httpErr.Retryable
 	}
-	
+
 	// For non-HTTPError types, check common patterns
 	if netErr, ok := err.(net.Error); ok {
 		return netErr.Timeout() // Focus on timeout errors as primary retryable condition
 	}
-	
+
 	return false
 }
 
@@ -229,11 +228,11 @@ func IsTimeout(err error) bool {
 	if httpErr, ok := err.(*HTTPError); ok {
 		return httpErr.Type == ErrorTypeTimeout
 	}
-	
+
 	if netErr, ok := err.(net.Error); ok {
 		return netErr.Timeout()
 	}
-	
+
 	return strings.Contains(strings.ToLower(err.Error()), "timeout")
 }
 
@@ -242,9 +241,9 @@ func IsNetworkError(err error) bool {
 	if httpErr, ok := err.(*HTTPError); ok {
 		return httpErr.Type == ErrorTypeNetwork
 	}
-	
+
 	_, isNetErr := err.(net.Error)
 	_, isURLErr := err.(*url.Error)
-	
+
 	return isNetErr || isURLErr
 }
